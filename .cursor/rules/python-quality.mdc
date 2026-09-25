@@ -1,0 +1,32 @@
+---
+description: Python quality, typing, linting, formatting, and dependency rules
+alwaysApply: true
+---
+
+# Python Quality Rules
+
+- Use Python 3.12.
+- Follow the existing `src/iberian_shakti` package layout.
+- Write clear, typed, maintainable Python.
+- Add type hints to public functions, methods, and important internal interfaces.
+- Keep code compatible with strict mypy checking.
+- Keep code compliant with Ruff linting and formatting.
+- Prefer small, focused functions and modules.
+- Avoid unnecessary abstractions and premature optimization.
+- Do not silently suppress type or lint errors unless there is a documented technical reason.
+- Do not introduce new dependencies unless required by the task.
+- Add dependencies through `pyproject.toml`, not ad-hoc requirements files unless explicitly requested.
+- Never hard-code credentials, API tokens, passwords, connection strings, or environment-specific secrets.
+- Read configuration and secrets from environment variables or approved configuration mechanisms.
+- Preserve existing public interfaces unless a requested change explicitly requires modifying them.
+
+## Validation
+
+After relevant Python changes, run:
+
+- `ruff check .`
+- `ruff format --check .`
+- `mypy src`
+- relevant pytest tests
+
+Fix failures caused by the change before considering the task complete.

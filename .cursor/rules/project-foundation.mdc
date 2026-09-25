@@ -1,0 +1,32 @@
+---
+description: Core project context and development principles for Iberian_Shakti
+alwaysApply: true
+---
+
+# Iberian_Shakti Project Foundation
+
+Iberian_Shakti is an enterprise-style, production-oriented Iberian energy intelligence and electricity-price forecasting platform.
+
+Motto: Predict. Explain. Empower. Save.
+
+## Core principles
+
+- Target Portugal and Spain / MIBEL.
+- Build production-style architecture, not a demo-only application.
+- Preserve clear separation between ingestion, transformation, features, training, inference, serving, monitoring, and infrastructure.
+- Snowflake is the planned central data, feature, model-governance, and serving-data platform.
+- Prefer scheduled batch inference with forecasts persisted to serving tables.
+- FastAPI should primarily serve precomputed results rather than trigger expensive model inference.
+- Keep application/domain logic reasonably portable and avoid unnecessary vendor lock-in.
+- Prefer simple, justified architecture over unnecessary infrastructure complexity.
+- Do not introduce Kafka, Kubernetes, streaming infrastructure, or other major technologies unless explicitly required.
+- Do not activate, provision, or modify paid cloud resources without explicit instruction.
+- Never expose, print, hard-code, or commit credentials, API tokens, passwords, certificates, or secrets.
+
+## Change discipline
+
+- Make small, reviewable changes.
+- Do not rewrite unrelated files.
+- Do not change established architecture without explaining the reason first.
+- Do not add dependencies unless they are necessary for the requested work.
+- Preserve existing repository structure unless the task explicitly requires changing it.

@@ -1,4 +1,82 @@
 # Architecture Decision Records
 
-Significant technical and architectural decisions for Iberian_Shakti
-will be recorded here as ADRs.
+Significant technical and architectural decisions for Iberian_Shakti are
+recorded here as Architecture Decision Records (ADRs).
+
+The target architecture is described in
+[`docs/architecture/README.md`](../architecture/README.md). ADRs capture *why*
+a material choice was made, what alternatives were considered, and what
+consequences follow.
+
+## When to write an ADR
+
+Write an ADR **before implementation** when a decision materially affects any
+of the following:
+
+- Data contracts or schemas
+- Security, identity, or secret handling
+- Infrastructure or cloud services
+- Model lifecycle, promotion, or serving
+- Production operations or environment boundaries (DEV / STAGING / PROD)
+- Introduction of a major technology (for example Kafka, Kubernetes, or a
+  streaming platform)
+
+Do not use ADRs for routine implementation details. Prefer a small, reviewable
+change plus an ADR only when the choice is durable.
+
+## Status values
+
+| Status | Meaning |
+| --- | --- |
+| Proposed | Under discussion; not yet accepted |
+| Accepted | Binding until superseded |
+| Superseded | Replaced by a later ADR (link the successor) |
+| Deprecated | No longer in force; kept for history |
+
+## File naming
+
+Use a sequential, zero-padded number and a short kebab-case title:
+
+```
+docs/adr/0001-short-decision-title.md
+```
+
+Numbers are assigned in order and are never reused. Do not rewrite history;
+supersede instead.
+
+## Template
+
+```markdown
+# ADR NNNN: Title
+
+- Status: Proposed | Accepted | Superseded | Deprecated
+- Date: YYYY-MM-DD
+- Deciders: (optional)
+
+## Context
+
+What problem or constraint requires a decision?
+
+## Decision
+
+What was chosen?
+
+## Alternatives considered
+
+What else was evaluated, and why was it rejected?
+
+## Consequences
+
+What becomes easier, harder, or newly constrained?
+
+## Follow-up
+
+Links to related ADRs, architecture docs, or implementation work.
+```
+
+## Index
+
+No ADRs have been filed yet. Founding constraints (MIBEL scope, Snowflake as
+the planned data platform, batch inference with FastAPI serving precomputed
+results, and rejection of Kafka/Kubernetes unless justified) are documented in
+the architecture README until individual ADRs are recorded.

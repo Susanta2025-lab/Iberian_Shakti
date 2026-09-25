@@ -1,0 +1,75 @@
+---
+description: Architecture boundaries and implementation guardrails for Iberian_Shakti
+alwaysApply: true
+---
+
+# Architecture Guardrails
+
+## Separation of concerns
+
+Keep these responsibilities clearly separated:
+
+- `ingestion/`: external-source acquisition, retries, provenance, source-specific parsing
+- `contracts/`: schemas, validation rules, interfaces, shared data contracts
+- `features/`: deterministic feature engineering
+- `models/`: model definitions and model-specific logic
+- `training/`: training, evaluation, experiment execution, promotion logic
+- `inference/`: forecast generation and inference workflows
+- `monitoring/`: data quality, drift, model performance, pipeline and service monitoring
+- `common/`: genuinely shared utilities only
+- `apps/api/`: serving interfaces and API-specific logic
+- `apps/dashboard/`: presentation and dashboard logic
+- `snowflake/`: Snowflake-specific SQL, roles, tasks, serving structures, and governance
+- `dbt/`: transformation models and data-quality tests
+- `infra/terraform/`: infrastructure as code
+
+Do not move business logic into API routes, dashboards, Terraform, or SQL merely for convenience.
+
+## Data architecture
+
+Use the intended logical flow:
+
+External sources
+→ ingestion
+→ validation/contracts
+→ immutable raw storage
+→ Snowflake RAW
+→ CURATED
+→ FEATURES
+→ training/evaluation
+→ model registry
+→ scheduled inference
+→ SERVING
+→ API/dashboard
+
+- Preserve raw source data and provenance.
+- Avoid destructive transformations of source data.
+- Make transformations reproducible and deterministic where practical.
+- Prevent training/serving feature definitions from drifting apart.
+- Design pipelines to be idempotent where possible.
+- Handle duplicate ingestion explicitly.
+
+## ML architecture
+
+- Establish simple baselines before advanced models.
+- Prefer evidence-based model selection.
+- Treat XGBoost or another strong tabular baseline as a production candidate before introducing complex deep-learning models.
+- Keep training separate from online/request-time serving.
+- Prefer scheduled batch forecasting with persisted predictions.
+- Track model version, data version, feature version, evaluation metrics, and forecast generation time.
+- Do not promote models without explicit evaluation criteria.
+
+## Enterprise guardrails
+
+- Maintain clear DEV, STAGING, and PROD boundaries.
+- Follow least-privilege access principles.
+- Do not bypass validation, authentication, authorization, auditing, or security controls for convenience.
+- Design external integrations with timeouts, retries, backoff, and observable failures.
+- Avoid single points of silent failure.
+- Make important operational actions auditable.
+
+## Scope control
+
+Do not introduce major infrastructure such as Kafka, Kubernetes, streaming platforms, service meshes, or additional cloud services unless a demonstrated requirement justifies them.
+
+When a requested change conflicts with these architectural boundaries, explain the conflict before implementing it.

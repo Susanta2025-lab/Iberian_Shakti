@@ -1,0 +1,67 @@
+---
+description: Testing, validation, and delivery workflow for Iberian_Shakti
+alwaysApply: true
+---
+
+# Testing and Delivery Workflow
+
+## Testing expectations
+
+Use the existing test structure:
+
+- `tests/unit/`: isolated logic and utility tests
+- `tests/integration/`: interactions between components, databases, services, or adapters
+- `tests/contracts/`: external API and internal data-contract validation
+- `tests/data/`: data-quality and representative test fixtures
+- `tests/e2e/`: end-to-end application and pipeline validation
+
+Add tests appropriate to the scope of each change.
+
+Do not create meaningless tests merely to increase test counts.
+
+## Validation after changes
+
+Run the smallest relevant test set during development.
+
+Before declaring a phase or implementation complete, run the applicable quality checks:
+
+- `ruff check .`
+- `ruff format --check .`
+- `mypy src`
+- `pytest`
+
+Also run relevant integration, contract, data, or end-to-end tests when the change affects those areas.
+
+## Failure handling
+
+- Do not ignore failing tests.
+- Do not weaken tests simply to make them pass.
+- Do not remove assertions or quality checks without a justified reason.
+- Investigate the root cause of failures.
+- Clearly distinguish failures caused by code from failures caused by unavailable external services or infrastructure.
+
+## External services
+
+Tests must not depend unnecessarily on live external APIs.
+
+Prefer mocks, fixtures, recorded representative responses, or isolated contract tests for normal development.
+
+Never use real secrets in tests or fixtures.
+
+Live-source validation must be explicit and separated from the normal deterministic test suite.
+
+## Change workflow
+
+For substantial phases, follow:
+
+1. Assess current repository state.
+2. Define scope and acceptance criteria.
+3. Implement the smallest coherent change.
+4. Add or update relevant tests.
+5. Run quality and test gates.
+6. Review the resulting diff.
+7. Report evidence, limitations, and remaining risks.
+
+Do not automatically commit or push changes unless explicitly instructed.
+
+Do not modify unrelated files while completing a scoped task.
