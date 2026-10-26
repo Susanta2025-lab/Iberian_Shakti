@@ -8,7 +8,10 @@ version = "0.1.0"
 description = "Enterprise-style Iberian energy intelligence and forecasting platform."
 readme = "README.md"
 requires-python = ">=3.12,<3.13"
-dependencies = []
+dependencies = [
+    "httpx>=0.28,<1",
+    "pydantic>=2,<3",
+]
 
 [project.optional-dependencies]
 dev = [

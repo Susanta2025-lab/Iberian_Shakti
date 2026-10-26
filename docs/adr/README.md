@@ -76,7 +76,12 @@ Links to related ADRs, architecture docs, or implementation work.
 
 ## Index
 
-No ADRs have been filed yet. Founding constraints (MIBEL scope, Snowflake as
+| ADR | Status |
+| --- | --- |
+| [0001: OMIE day-ahead source and market-price contract](0001-omie-day-ahead-source-and-market-price-contract.md) | Accepted |
+| [0002: Local ingestion execution, immutable archive, and replay](0002-local-ingestion-immutable-archive-and-replay.md) | Accepted |
+
+Founding constraints (MIBEL scope, Snowflake as
 the planned data platform, batch inference with FastAPI serving precomputed
 results, and rejection of Kafka/Kubernetes unless justified) are documented in
 the architecture README until individual ADRs are recorded.
