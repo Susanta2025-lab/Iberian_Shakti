@@ -200,7 +200,10 @@ class HttpObservations(FrozenContract):
     content_encoding: (
         Annotated[
             str,
-            Field(pattern=r"^[A-Za-z0-9_-]{1,32}(?:,[ \t]*[A-Za-z0-9_-]{1,32})*$", max_length=128),
+            Field(
+                pattern=r"^[A-Za-z0-9_-]{1,32}(?:[ \t]*,[ \t]*[A-Za-z0-9_-]{1,32})*$",
+                max_length=128,
+            ),
         ]
         | None
     ) = None

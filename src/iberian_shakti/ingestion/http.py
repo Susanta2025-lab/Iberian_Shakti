@@ -100,6 +100,7 @@ def _transport_error(error: httpx.RequestError) -> ExecutionError:
         (httpx.WriteTimeout, ErrorCode.TIMEOUT, FailureReason.WRITE_TIMEOUT),
         (httpx.PoolTimeout, ErrorCode.TIMEOUT, FailureReason.POOL_TIMEOUT),
         (httpx.ConnectError, ErrorCode.TRANSPORT_FAILURE, FailureReason.CONNECTION),
+        (httpx.WriteError, ErrorCode.TRANSPORT_FAILURE, FailureReason.CONNECTION),
         (httpx.ReadError, ErrorCode.INCOMPLETE_BODY, FailureReason.PROTOCOL),
         (httpx.RemoteProtocolError, ErrorCode.INCOMPLETE_BODY, FailureReason.PROTOCOL),
     ):
@@ -188,7 +189,7 @@ class HttpRetriever:
             raise ExecutionError(ErrorCode.INVALID_LOCATOR, FailureReason.CONFIGURATION)
         acquired = self._acquire(
             self._url(lambda: resolver(request)),
-            {},
+            {"safe_locator": request.safe_locator},
             self.listing_max_bytes,
             None,
         )
@@ -222,7 +223,15 @@ class HttpRetriever:
                     # No request started, including after an oversleep.
                     if attempt == 1:
                         raise ExecutionError(ErrorCode.BUDGET_EXCEEDED, FailureReason.DEADLINE)
-                    return self._failure(context, max(1, attempt - 1), ErrorCode.BUDGET_EXCEEDED)
+                    return self._failure(
+                        {
+                            **context,
+                            "elapsed_seconds": self.clock() - start,
+                            "reason": FailureReason.DEADLINE.value,
+                        },
+                        max(1, attempt - 1),
+                        ErrorCode.BUDGET_EXCEEDED,
+                    )
                 deadline = min(
                     operation_deadline, self.clock() + self.policy.attempt_timeout_seconds
                 )
@@ -251,7 +260,16 @@ class HttpRetriever:
                         if status == 404 and classify_unavailable is not None:
                             code = classify_unavailable(status)
                             if code in {ErrorCode.NOT_FOUND, ErrorCode.NOT_LISTED}:
-                                logger.info("retrieval_unavailable", extra=context)
+                                logger.info(
+                                    "retrieval_unavailable",
+                                    extra={
+                                        **context,
+                                        "attempt": attempt,
+                                        "http_status": status,
+                                        "elapsed_seconds": self.clock() - start,
+                                        "error_code": code.value,
+                                    },
+                                )
                                 return _Acquisition(
                                     attempt=attempt,
                                     outcome=RetrievalOutcome.UNAVAILABLE,
@@ -262,7 +280,14 @@ class HttpRetriever:
                         if status == 200:
                             content = self._read(response, deadline, max_bytes)
                             logger.info(
-                                "retrieval_completed", extra={**context, "byte_count": len(content)}
+                                "retrieval_completed",
+                                extra={
+                                    **context,
+                                    "attempt": attempt,
+                                    "http_status": status,
+                                    "elapsed_seconds": self.clock() - start,
+                                    "byte_count": len(content),
+                                },
                             )
                             return _Acquisition(
                                 attempt=attempt,
@@ -286,16 +311,30 @@ class HttpRetriever:
                 except ExecutionError as error:
                     if error.code is ErrorCode.UNSUPPORTED_ENCODING:
                         logger.warning(
-                            "retrieval_failed", extra={**context, "error_code": error.code.value}
+                            "retrieval_failed",
+                            extra={
+                                **context,
+                                "attempt": attempt,
+                                "http_status": status,
+                                "elapsed_seconds": self.clock() - start,
+                                "error_code": error.code.value,
+                                "reason": error.reason.value,
+                            },
                         )
                         raise
                     failure = error
                 finally:
                     deadline_context.reset(token)
+                failure_context = {
+                    **context,
+                    "attempt": attempt,
+                    "http_status": status,
+                    "elapsed_seconds": self.clock() - start,
+                    "error_code": failure.code.value,
+                    "reason": failure.reason.value,
+                }
                 if not failure.retryable:
-                    logger.warning(
-                        "retrieval_failed", extra={**context, "error_code": failure.code.value}
-                    )
+                    logger.warning("retrieval_failed", extra=failure_context)
                     return _Acquisition(
                         attempt=attempt,
                         outcome=RetrievalOutcome.PERMANENT_FAILURE,
@@ -304,7 +343,9 @@ class HttpRetriever:
                         observations=observations,
                     )
                 if attempt == self.policy.max_attempts:
-                    return self._failure(context, attempt, failure.code, status, observations)
+                    return self._failure(
+                        failure_context, attempt, failure.code, status, observations
+                    )
                 remaining = operation_deadline - self.clock()
                 delay = self.policy.delay(attempt)
                 if retry_after is not None:
@@ -313,8 +354,8 @@ class HttpRetriever:
                 # If it cannot fit, terminate without sleeping or another request.
                 if delay >= remaining:
                     code = failure.code if status == 429 else ErrorCode.BUDGET_EXCEEDED
-                    return self._failure(context, attempt, code, status, observations)
-                logger.info("retry_scheduled", extra={**context, "attempt": attempt})
+                    return self._failure(failure_context, attempt, code, status, observations)
+                logger.info("retry_scheduled", extra=failure_context)
                 self.sleeper(delay)
         raise AssertionError("Finite nonempty attempt range must return")
 

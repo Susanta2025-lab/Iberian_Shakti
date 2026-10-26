@@ -14,6 +14,7 @@ from iberian_shakti.contracts.ingestion import (
     SourceRequest,
 )
 from iberian_shakti.ingestion.archive import persist_retrieval
+from iberian_shakti.ingestion.retrieval import utc_now
 
 
 def ingest(
@@ -24,14 +25,16 @@ def ingest(
     retriever: Retriever,
     archive: RawArchive,
     parser: Parser,
-    parsed_at: datetime,
     parse_event_id: UUID,
+    parsed_at: datetime | None = None,
 ) -> IngestionResult | ResolutionResult:
     """Unresolved requests retain explicit resolution outcomes without fabricated retrieval.
 
     Callers can use one HTTP retriever for both boundaries, or independently
     inject a listing acquirer and an offline report retriever. Archive errors
     propagate outside acquisition; there is no retry loop here.
+    Capture the parse time after acquisition persistence unless the caller
+    explicitly supplies one for deterministic execution.
     """
     resolution = adapter.resolve(request, listing_retriever)
     if resolution.source is None:
@@ -42,7 +45,7 @@ def ingest(
     parsed = parser.parse(
         acquired.payload,
         acquired.provenance,
-        parsed_at=parsed_at,
+        parsed_at=parsed_at if parsed_at is not None else utc_now(),
         parse_event_id=parse_event_id,
     )
     archive.persist_parse(parsed.provenance)

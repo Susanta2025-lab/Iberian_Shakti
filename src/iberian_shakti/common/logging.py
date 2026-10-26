@@ -53,7 +53,7 @@ _IDENTIFIER = re.compile(r"[A-Za-z][A-Za-z0-9_.-]{0,63}", re.ASCII)
 _FILENAME = re.compile(r"[A-Za-z0-9][A-Za-z0-9_.-]{0,127}", re.ASCII)
 _ARCHIVE_REFERENCE = re.compile(r"[A-Za-z0-9_./-]{1,512}", re.ASCII)
 _SHA256 = re.compile(r"[0-9a-f]{64}", re.ASCII)
-_IDENTIFIER_FIELDS = frozenset({"source", "report", "outcome", "error_code"})
+_IDENTIFIER_FIELDS = frozenset({"source", "report", "outcome", "error_code", "reason"})
 _INTEGER_FIELDS: dict[str, tuple[int, int | None]] = {
     "revision": (1, None),
     "attempt": (1, None),
@@ -75,7 +75,7 @@ def _safe_string(field: str, value: str) -> bool:
             return date.fromisoformat(value).isoformat() == value
         except ValueError:
             return False
-    if field == "archive_reference":
+    if field in {"archive_reference", "safe_locator"}:
         return (
             _ARCHIVE_REFERENCE.fullmatch(value) is not None
             and not value.startswith("/")
