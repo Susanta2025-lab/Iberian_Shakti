@@ -379,8 +379,44 @@ class IngestionResult(FrozenContract):
         return self
 
 
+class ListingRequest(FrozenContract):
+    """Execution-owned listing target, never an invented resolved report."""
+
+    safe_locator: SafeReference
+
+
+class ListingResult(FrozenContract):
+    """Ephemeral discovery bytes; not report content or retrieval provenance."""
+
+    outcome: RetrievalOutcome
+    attempt_count: PositiveInt
+    content: bytes | None = Field(default=None, repr=False, exclude=True)
+    http_status: Annotated[int, Field(ge=100, le=599)] | None = None
+    http: HttpObservations | None = None
+    error_code: ErrorCode | None = None
+
+    @model_validator(mode="after")
+    def consistent_listing(self) -> Self:
+        if self.outcome is RetrievalOutcome.RETRIEVED:
+            if self.content is None or self.http_status != 200 or self.error_code is not None:
+                raise ValueError("Successful listing requires complete HTTP 200 bytes")
+        elif (
+            self.outcome is RetrievalOutcome.UNAVAILABLE
+            or self.content is not None
+            or self.error_code is None
+        ):
+            raise ValueError("Listing failure cannot assert report absence or return bytes")
+        return self
+
+
+class ListingRetriever(Protocol):
+    def retrieve_listing(self, request: ListingRequest) -> ListingResult:
+        """Acquire a bounded listing using the same transport/retry execution policy."""
+        ...
+
+
 class SourceAdapter(Protocol):
-    def resolve(self, request: SourceRequest, retriever: "Retriever") -> ResolutionResult:
+    def resolve(self, request: SourceRequest, retriever: ListingRetriever) -> ResolutionResult:
         """Resolve exact/latest observed selection with bounded discovery if needed."""
         ...
 

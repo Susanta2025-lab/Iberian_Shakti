@@ -5,6 +5,7 @@ import re
 import ssl
 import time
 from collections.abc import Callable
+from dataclasses import dataclass
 from datetime import UTC, datetime
 from email.utils import parsedate_to_datetime
 from uuid import UUID
@@ -15,6 +16,8 @@ from pydantic import ValidationError
 from iberian_shakti.contracts.ingestion import (
     ErrorCode,
     HttpObservations,
+    ListingRequest,
+    ListingResult,
     ResolvedSource,
     RetrievalOutcome,
     RetrievalResult,
@@ -35,6 +38,16 @@ from iberian_shakti.ingestion.retry import RetryPolicy
 logger = logging.getLogger(__name__)
 type LocatorResolver = Callable[[ResolvedSource], str]
 type UnavailableClassifier = Callable[[ResolvedSource, int], ErrorCode | None]
+
+
+@dataclass(frozen=True)
+class _Acquisition:
+    attempt: int
+    outcome: RetrievalOutcome = RetrievalOutcome.RETRIEVED
+    content: bytes | None = None
+    code: ErrorCode | None = None
+    status: int | None = None
+    observations: HttpObservations | None = None
 
 
 def _observations(response: httpx.Response) -> HttpObservations:
@@ -114,11 +127,16 @@ class HttpRetriever:
         transport: httpx.BaseTransport | None = None,
         policy: RetryPolicy | None = None,
         max_bytes: int = DEFAULT_MAX_BYTES,
+        resolve_listing_url: Callable[[ListingRequest], str] | None = None,
+        listing_max_bytes: int = 1024 * 1024,
         clock: Callable[[], float] = time.monotonic,
         sleeper: Callable[[float], None] = time.sleep,
         now: Callable[[], datetime] = utc_now,
     ) -> None:
         validate_size(max_bytes)
+        validate_size(listing_max_bytes)
+        self.resolve_listing_url = resolve_listing_url
+        self.listing_max_bytes = listing_max_bytes
         validate_event_id(retrieval_event_id)
         self.resolve_url = resolve_url
         self.event_id = retrieval_event_id
@@ -130,9 +148,10 @@ class HttpRetriever:
         self.sleeper = sleeper
         self.now = now
 
-    def _url(self, source: ResolvedSource) -> httpx.URL:
+    @staticmethod
+    def _url(resolve: Callable[[], str]) -> httpx.URL:
         try:
-            url = httpx.URL(self.resolve_url(source))
+            url = httpx.URL(resolve())
         except (ValueError, TypeError, httpx.InvalidURL) as error:
             raise ExecutionError(ErrorCode.INVALID_LOCATOR, FailureReason.LOCATOR) from error
         if url.scheme != "https":
@@ -143,8 +162,52 @@ class HttpRetriever:
 
     def retrieve(self, source: ResolvedSource) -> RetrievalResult:
         validate_source(source)
-        context = source_context(source)
-        url = self._url(source)
+        classifier = self.classify_unavailable
+        acquired = self._acquire(
+            self._url(lambda: self.resolve_url(source)),
+            source_context(source),
+            self.max_bytes,
+            (lambda status: classifier(source, status)) if classifier is not None else None,
+        )
+        return result_for(
+            source,
+            self.event_id,
+            self.now(),
+            attempt=acquired.attempt,
+            outcome=acquired.outcome,
+            content=acquired.content,
+            code=acquired.code,
+            status=acquired.status,
+            observations=acquired.observations,
+        )
+
+    def retrieve_listing(self, request: ListingRequest) -> ListingResult:
+        ListingRequest.model_validate_json(request.model_dump_json())
+        resolver = self.resolve_listing_url
+        if resolver is None:
+            raise ExecutionError(ErrorCode.INVALID_LOCATOR, FailureReason.CONFIGURATION)
+        acquired = self._acquire(
+            self._url(lambda: resolver(request)),
+            {},
+            self.listing_max_bytes,
+            None,
+        )
+        return ListingResult(
+            outcome=acquired.outcome,
+            attempt_count=acquired.attempt,
+            content=acquired.content,
+            http_status=acquired.status,
+            http=acquired.observations,
+            error_code=acquired.code,
+        )
+
+    def _acquire(
+        self,
+        url: httpx.URL,
+        context: dict[str, object],
+        max_bytes: int,
+        classify_unavailable: Callable[[int], ErrorCode | None] | None,
+    ) -> _Acquisition:
         start = self.clock()
         operation_deadline = start + self.policy.operation_timeout_seconds
         # A supplied transport must implement finite phase timeouts and no
@@ -159,7 +222,7 @@ class HttpRetriever:
                     # No request started, including after an oversleep.
                     if attempt == 1:
                         raise ExecutionError(ErrorCode.BUDGET_EXCEEDED, FailureReason.DEADLINE)
-                    return self._failure(source, max(1, attempt - 1), ErrorCode.BUDGET_EXCEEDED)
+                    return self._failure(context, max(1, attempt - 1), ErrorCode.BUDGET_EXCEEDED)
                 deadline = min(
                     operation_deadline, self.clock() + self.policy.attempt_timeout_seconds
                 )
@@ -185,14 +248,11 @@ class HttpRetriever:
                         self._check_deadline(deadline)
                         status = response.status_code
                         observations = _observations(response)
-                        if status == 404 and self.classify_unavailable is not None:
-                            code = self.classify_unavailable(source, status)
+                        if status == 404 and classify_unavailable is not None:
+                            code = classify_unavailable(status)
                             if code in {ErrorCode.NOT_FOUND, ErrorCode.NOT_LISTED}:
                                 logger.info("retrieval_unavailable", extra=context)
-                                return result_for(
-                                    source,
-                                    self.event_id,
-                                    self.now(),
+                                return _Acquisition(
                                     attempt=attempt,
                                     outcome=RetrievalOutcome.UNAVAILABLE,
                                     code=code,
@@ -200,14 +260,11 @@ class HttpRetriever:
                                     observations=observations,
                                 )
                         if status == 200:
-                            content = self._read(response, deadline)
+                            content = self._read(response, deadline, max_bytes)
                             logger.info(
                                 "retrieval_completed", extra={**context, "byte_count": len(content)}
                             )
-                            return result_for(
-                                source,
-                                self.event_id,
-                                self.now(),
+                            return _Acquisition(
                                 attempt=attempt,
                                 content=content,
                                 status=status,
@@ -239,10 +296,7 @@ class HttpRetriever:
                     logger.warning(
                         "retrieval_failed", extra={**context, "error_code": failure.code.value}
                     )
-                    return result_for(
-                        source,
-                        self.event_id,
-                        self.now(),
+                    return _Acquisition(
                         attempt=attempt,
                         outcome=RetrievalOutcome.PERMANENT_FAILURE,
                         code=failure.code,
@@ -250,7 +304,7 @@ class HttpRetriever:
                         observations=observations,
                     )
                 if attempt == self.policy.max_attempts:
-                    return self._failure(source, attempt, failure.code, status, observations)
+                    return self._failure(context, attempt, failure.code, status, observations)
                 remaining = operation_deadline - self.clock()
                 delay = self.policy.delay(attempt)
                 if retry_after is not None:
@@ -259,7 +313,7 @@ class HttpRetriever:
                 # If it cannot fit, terminate without sleeping or another request.
                 if delay >= remaining:
                     code = failure.code if status == 429 else ErrorCode.BUDGET_EXCEEDED
-                    return self._failure(source, attempt, code, status, observations)
+                    return self._failure(context, attempt, code, status, observations)
                 logger.info("retry_scheduled", extra={**context, "attempt": attempt})
                 self.sleeper(delay)
         raise AssertionError("Finite nonempty attempt range must return")
@@ -268,14 +322,14 @@ class HttpRetriever:
         if self.clock() >= deadline:
             raise ExecutionError(ErrorCode.BUDGET_EXCEEDED, FailureReason.DEADLINE, retryable=True)
 
-    def _read(self, response: httpx.Response, deadline: float) -> bytes:
+    def _read(self, response: httpx.Response, deadline: float, max_bytes: int) -> bytes:
         # Do not use iter_bytes/read/text: those decode Content-Encoding.
         if response.is_stream_consumed:
             raise ExecutionError(ErrorCode.INCOMPLETE_BODY, FailureReason.PROTOCOL)
         content = bytearray()
         for chunk in response.iter_raw():
             self._check_deadline(deadline)
-            if len(chunk) > self.max_bytes - len(content):
+            if len(chunk) > max_bytes - len(content):
                 raise ExecutionError(ErrorCode.SIZE_LIMIT, FailureReason.SIZE)
             content.extend(chunk)
         self._check_deadline(deadline)
@@ -299,24 +353,21 @@ class HttpRetriever:
 
     def _failure(
         self,
-        source: ResolvedSource,
+        context: dict[str, object],
         attempt: int,
         code: ErrorCode,
         status: int | None = None,
         observations: HttpObservations | None = None,
-    ) -> RetrievalResult:
+    ) -> _Acquisition:
         logger.warning(
             "retry_exhausted",
             extra={
-                **source_context(source),
+                **context,
                 "attempt": attempt,
                 "error_code": code.value,
             },
         )
-        return result_for(
-            source,
-            self.event_id,
-            self.now(),
+        return _Acquisition(
             attempt=attempt,
             outcome=RetrievalOutcome.RETRY_EXHAUSTED,
             code=code,

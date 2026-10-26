@@ -39,6 +39,8 @@ _EVENTS: frozenset[str] = frozenset(
         "retrieval_provenance_persisted",
         "content_reused",
         "parse_completed",
+        "omie_parse_started",
+        "omie_resolution_completed",
         "validation_failed",
         "replay_completed",
         "replay_started",
