@@ -195,7 +195,15 @@ class HttpObservations(FrozenContract):
         ]
         | None
     ) = None
-    content_encoding: Annotated[str, Field(pattern=r"^[A-Za-z0-9_-]{1,32}$")] | None = None
+    # HTTP permits an ordered coding list. Preserve it without decoding bytes;
+    # the original single-token values remain valid and individually bounded.
+    content_encoding: (
+        Annotated[
+            str,
+            Field(pattern=r"^[A-Za-z0-9_-]{1,32}(?:,[ \t]*[A-Za-z0-9_-]{1,32})*$", max_length=128),
+        ]
+        | None
+    ) = None
     etag: Annotated[str, Field(pattern=r'^(W/)?"[!#-~]{0,256}"$')] | None = None
     last_modified: UtcDatetime | None = None
 
