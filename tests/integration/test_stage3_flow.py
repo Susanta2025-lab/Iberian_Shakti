@@ -1,7 +1,6 @@
 """Generic mocked acquisition/archive/replay/parse linkage; no source adapters."""
 
 import gzip
-import socket
 from collections.abc import Iterator
 from datetime import UTC, date, datetime, timedelta
 from decimal import Decimal
@@ -86,16 +85,6 @@ class BytesStream(httpx.SyncByteStream):
         yield self.content
         if self.interrupted:
             raise httpx.RemoteProtocolError("synthetic-secret")
-
-
-@pytest.fixture(autouse=True)
-def offline(monkeypatch):
-    def forbidden(*args, **kwargs):
-        raise AssertionError("No live Stage 3 network")
-
-    monkeypatch.setattr(socket, "create_connection", forbidden)
-    monkeypatch.setattr(socket.socket, "connect", forbidden)
-    monkeypatch.setattr(socket, "getaddrinfo", forbidden)
 
 
 @pytest.fixture

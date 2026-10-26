@@ -1,4 +1,4 @@
-"""Stage 4 local fixtures; parent network denial remains scoped to ingestion units."""
+"""Local OMIE fixtures; the repository-wide pytest network guard applies."""
 
 import json
 from datetime import UTC, date, datetime

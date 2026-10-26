@@ -1,7 +1,6 @@
 """Synthetic Stage 3 objects and an advancing clock; no provider fixtures."""
 
 import hashlib
-import socket
 from datetime import UTC, date, datetime
 from uuid import UUID
 
@@ -35,16 +34,6 @@ class FakeClock:
         assert seconds >= 0
         self.sleeps.append(seconds)
         self.time += seconds
-
-
-@pytest.fixture(autouse=True)
-def no_stage3_network(monkeypatch: pytest.MonkeyPatch) -> None:
-    def forbidden(*args: object, **kwargs: object) -> None:
-        raise AssertionError("Stage 3 tests must be offline")
-
-    monkeypatch.setattr(socket, "create_connection", forbidden)
-    monkeypatch.setattr(socket.socket, "connect", forbidden)
-    monkeypatch.setattr(socket, "getaddrinfo", forbidden)
 
 
 @pytest.fixture

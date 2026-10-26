@@ -1,7 +1,6 @@
 """Actual OMIE adapter and Stage 3 acquisition/archive/replay, entirely offline."""
 
 import hashlib
-import socket
 from datetime import UTC, date, datetime
 from pathlib import Path
 from uuid import UUID
@@ -29,16 +28,6 @@ from iberian_shakti.ingestion.runner import ingest
 
 ROOT = Path(__file__).resolve().parents[1] / "data" / "omie"
 NOW = datetime(2026, 10, 26, 12, tzinfo=UTC)
-
-
-@pytest.fixture(autouse=True)
-def no_stage4_network(monkeypatch):
-    def forbidden(*args, **kwargs):
-        raise AssertionError("Stage 4 integration must be offline")
-
-    monkeypatch.setattr(socket, "create_connection", forbidden)
-    monkeypatch.setattr(socket.socket, "connect", forbidden)
-    monkeypatch.setattr(socket, "getaddrinfo", forbidden)
 
 
 class Stream(httpx.SyncByteStream):
