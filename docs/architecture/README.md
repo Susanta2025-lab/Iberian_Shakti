@@ -14,10 +14,12 @@ Operational procedures live in [`docs/runbooks/`](../runbooks/README.md).
 
 ## Status
 
-The repository is in a **foundation** phase. `src/iberian_shakti` and the
-`tests/` tree exist as a typed package and test-layout skeleton. Pipelines,
-Snowflake objects, and serving surfaces are **not implemented**. Do not treat
-this document as a description of a running system.
+Phase 0 and Phase 1 are **CLOSED/PASS**; Phase 2 is not started. Phase 1
+implements local OMIE ingestion, immutable archival, provenance and offline
+replay, verified by the
+[final acceptance report](../codex/reports/phase_1_stage_7_final_acceptance.md).
+Snowflake, transformations, features, ML, forecasting, serving and deployment
+remain planned. There is no deployed production service.
 
 Paid cloud resources and Snowflake must not be activated, provisioned, or
 modified without explicit instruction.
@@ -38,7 +40,71 @@ modified without explicit instruction.
 - Kafka, Kubernetes, streaming platforms, service meshes, and extra cloud
   services are out of scope unless a demonstrated requirement justifies them.
 
-## Logical data flow
+## Implemented Phase 1 flow
+
+```text
+OMIE public source
+  → SourceRequest
+  → exact revision OR bounded latest-observed discovery
+  → bounded HTTP retrieval
+  → immutable raw archive
+  → retrieval provenance
+  → strict OMIE parsing
+  → Europe/Madrid calendar normalization
+  → PT / ES MarketPrice records
+  → parse provenance
+```
+
+`contracts/` owns strict frozen request, resolution, acquisition, archive,
+parse and market schemas plus synchronous protocols. `ingestion/` owns
+configuration, transport, retry/error policy, local files, archive, replay and
+the runner; `ingestion/omie/` owns provider identity, discovery, grammar and
+calendar policy. `common/` owns the explicit safe logging boundary.
+
+The runner persists complete raw bytes and acquisition metadata **before**
+parsing. A complete malformed 200 body remains archived with a separate failed
+parse event and zero normalized records. Interrupted/oversized acquisitions
+do not become complete archived reports. Persistence failures prevent success.
+
+Raw bodies use SHA-256 identity and atomic no-replace local publication;
+new acquisitions and parses are separate immutable events. Identical bytes
+reuse one payload; changed bytes under the same filename/revision remain
+separate versions. This assumes a trusted local filesystem with hard-link and
+fsync support; it is application immutability, not WORM storage.
+
+```text
+immutable archive + original retrieval provenance
+  → verified offline replay
+  → same OMIE parser and calendar
+  → normalized records + new parse event
+```
+
+Replay loads verified bytes and original acquisition history. It creates
+neither a new payload nor a retrieval event; parsing and persistence of a new
+parse event are explicit separate calls.
+
+One `marginalpdbc` report supplies PT and ES Decimal prices in EUR/MWh. Both
+areas use `Europe/Madrid`, with separately converted local midnight boundaries
+and UTC interval stepping. Before 2025-10-01 the ordinary/spring/autumn profiles
+are 24/23/25 hourly periods; from that date they are 96/92/100 quarter-hours.
+There is no fixed CET offset or hourly fallback. Only the tested strict ASCII
+numeric grammar is supported; complete days are validated before emission.
+
+Discovery reads one page, bounded to 1 MiB and 10,000 anchor candidates;
+numeric revision selection is latest observed, not complete historical coverage.
+Pagination or uncertain coverage fails explicitly; exact revision bypasses
+listing discovery. HTTP uses identity raw streaming, no redirects and one
+bounded retry policy. See [ADR 0001](../adr/0001-omie-day-ahead-source-and-market-price-contract.md),
+[ADR 0002](../adr/0002-local-ingestion-immutable-archive-and-replay.md) and the
+[runbook](../runbooks/ingestion.md) for limits, settings and recovery.
+
+Default pytest denies network use. The separate live command requires `--live`.
+Passing local tests does not guarantee successful live validation.
+A successful live observation does not guarantee permanent provider compatibility.
+The [Stage 6 observations](../codex/reports/phase_1_stage_6_live_validation.md)
+establish compatibility only for those recorded interactions.
+
+## Planned end-to-end data flow
 
 ```
 External sources
@@ -67,8 +133,9 @@ Pipeline expectations:
 ## Repository layout
 
 Python application code lives under `src/iberian_shakti` (Python 3.12). Domain
-packages currently exist as empty modules. Serving apps and platform folders
-are repository-root skeletons. Keep these responsibilities separate. Do not
+packages outside ingestion, contracts and shared logging remain empty stubs.
+Serving apps and platform folders are repository-root skeletons. Keep these
+responsibilities separate. Do not
 move business logic into API routes, dashboards, Terraform, or SQL merely for
 convenience.
 
@@ -89,14 +156,16 @@ convenience.
 | `infra/terraform/` | Infrastructure as code |
 | `tests/` | `unit`, `integration`, `contracts`, `data`, `e2e` |
 
-Ingestion adapter packages (stubs): `esios`, `entsoe`, `omie`, `ren`, `weather`.
+OMIE is implemented; `esios`, `entsoe`, `ren` and `weather` remain stubs.
+REN, ESIOS, ENTSO-E, Open-Meteo and MIBGAS integrations are future scope.
 
 Environment configuration (see `.env.example`; do not add secrets to the
 repository):
 
-- ESIOS and ENTSO-E: API tokens
-- Snowflake: connection and authentication settings (account, user, password,
-  role, warehouse, database, and schema)
+- Phase 1 reads only local archive, timeout, attempt, backoff and log-level
+  settings explicitly, without automatic `.env` loading or provider credentials.
+- ESIOS/ENTSO-E token and Snowflake placeholders are for future work; Phase 1
+  does not read them.
 
 Snowflake subdirectories (`raw`, `curated`, `features`, `serving`, `ml`,
 `roles`, `tasks`, `audit`) and Terraform environment dirs (`dev`, `staging`,

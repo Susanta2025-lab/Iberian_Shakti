@@ -10,9 +10,10 @@ system as designed.
 
 ## Status
 
-There is **no production system** yet. The repository is in a foundation phase.
-These pages define the runbook catalog and operating rules so procedures can be
-added as ingestion, Snowflake, inference, and serving are implemented.
+There is **no deployed production system** yet. Phase 1 local OMIE ingestion,
+archive and replay are implemented and CLOSED/PASS. Phase 2 is not started.
+The [OMIE ingestion runbook](ingestion.md) covers the implemented operator path;
+the catalog below lists future procedures, not existing services.
 
 Do not activate, provision, or modify paid cloud resources or Snowflake without
 explicit instruction. Never put credentials, tokens, passwords, certificates, or
@@ -80,12 +81,14 @@ Idempotent catch-up, replay, or rollback. Note data provenance constraints
 When to stop and who owns the next decision (including any paid-resource change).
 ```
 
-## Local development (until services exist)
+## Local development
 
 1. Use Python 3.12 as specified in `pyproject.toml`.
-2. Copy `.env.example` to `.env` locally; leave tokens empty unless you have
-   been given them through an approved channel.
-3. Do not run live external API checks as part of the normal test suite.
+2. Use the named `iberian_shakti` environment. Export ingestion settings
+   explicitly when needed; `.env.example` is a template, not an automatic loader.
+   Public OMIE ingestion needs no unrelated provider credentials.
+3. Normal `python -m pytest` is network-denied from configuration/collection
+   onward. Live smoke is a separate, deliberate `--live` operator action.
 4. Quality gates: `ruff check .`, `ruff format --check .`, `mypy src`, and
-   `pytest`. `tests/` exists; test modules are not implemented yet, so pytest
-   currently collects 0 tests.
+   `python -m pytest` (968 passing cases at Phase 1 closure), followed by
+   `git diff --check` and applicable pre-commit hooks.
