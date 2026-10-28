@@ -16,10 +16,12 @@ serving-data platform.
 
 - Phase 0 — CLOSED/PASS
 - Phase 1 — CLOSED/PASS
-- Phase 2 — not started
+- Phase 2 — in progress (Stage 1 shared foundation; provider integrations pending)
 
 The [Phase 1 final acceptance report](docs/codex/reports/phase_1_stage_7_final_acceptance.md)
 traces all 22 original acceptance criteria to implementation and verification.
+Phase 2 uses the single [readiness assessment](docs/codex/reports/phase_2_readiness_assessment.md)
+and [Stage 1 report](docs/codex/reports/phase_2_stage_1_report.md).
 
 Present today:
 
@@ -35,12 +37,15 @@ Present today:
 - Operator-controlled live smoke command with mandatory `--live`; successful
   exact/discovery observations and offline replay recorded in the
   [Stage 6 report](docs/codex/reports/phase_1_stage_6_live_validation.md)
-- 968 deterministic tests; default pytest denies network access, including
-  DNS, outbound socket operations and real HTTPX transports
+- Shared API snapshot queries, typed system/weather records, versioned semantic
+  outcomes and a private authentication boundary; all new provider packages remain stubs
+- 968 Phase 1 regression cases retained alongside Stage 1 tests; default pytest
+  denies network access, including DNS, outbound socket operations and real HTTPX transports
 - Directory skeletons for `apps/`, `snowflake/`, `dbt/`, `infra/terraform/`,
   `docker/`, and `.github/workflows/`
 
-Future scope: REN, ESIOS, ENTSO-E, Open-Meteo and MIBGAS integrations; Snowflake,
+Future scope: REN, ESIOS, ENTSO-E and Open-Meteo integrations; MIBGAS is deferred;
+Snowflake,
 dbt, feature engineering, ML training, model registry, batch forecasts, FastAPI,
 dashboard, production scheduler and infrastructure deployment. These are not
 implemented. Phase 1 operates locally; it is not a deployed production service.

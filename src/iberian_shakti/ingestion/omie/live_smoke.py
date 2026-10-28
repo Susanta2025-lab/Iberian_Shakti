@@ -23,6 +23,7 @@ from iberian_shakti.contracts.ingestion import (
     RetrievalOutcome,
     SourceRequest,
 )
+from iberian_shakti.contracts.market import MarketPrice
 from iberian_shakti.ingestion.archive import LocalRawArchive
 from iberian_shakti.ingestion.config import (
     ConfigurationError,
@@ -198,7 +199,12 @@ def _successful_summary(result: IngestionResult) -> int:
         )
         return EXIT_CONTENT
 
-    records = parsed.records
+    # The shared record boundary now includes non-price families. OMIE still
+    # requires exclusively MarketPrice; reject a wiring error, never drop records.
+    records = tuple(record for record in parsed.records if isinstance(record, MarketPrice))
+    if len(records) != len(parsed.records):
+        _print({"error_code": "unexpected_record_family", "verdict": "failed"})
+        return EXIT_CONTENT
     pt_records = tuple(record for record in records if record.market_area == "PT")
     es_records = tuple(record for record in records if record.market_area == "ES")
     period_indexes = {record.period_index for record in records}

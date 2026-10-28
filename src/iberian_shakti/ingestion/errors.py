@@ -34,6 +34,9 @@ class FailureReason(StrEnum):
     METADATA = "metadata_persistence"
     PATH = "path_validation"
     REPLAY = "replay_integrity"
+    AUTHENTICATION = "authentication_failure"
+    AUTHORIZATION = "authorization_failure"
+    SENSITIVE_RESPONSE = "sensitive_response"
 
 
 class ExecutionError(Exception):

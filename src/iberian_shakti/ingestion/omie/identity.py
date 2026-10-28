@@ -10,6 +10,7 @@ from iberian_shakti.contracts.ingestion import (
     ResolvedSource,
     SourceRequest,
 )
+from iberian_shakti.contracts.queries import ApiSourceRequest
 from iberian_shakti.ingestion.errors import ExecutionError, FailureReason
 
 SOURCE_ID = "omie"
@@ -23,7 +24,7 @@ LISTING_URL = f"{ORIGIN}/en/file-access-list?realdir=marginalpdbc"
 FILENAME = re.compile(r"marginalpdbc_([0-9]{8})\.([1-9][0-9]*)", re.ASCII)
 
 
-def validate_request(request: SourceRequest) -> None:
+def validate_request(request: SourceRequest | ApiSourceRequest) -> None:
     SourceRequest.model_validate_json(request.model_dump_json())
     if (request.source_id, request.report_id) != (SOURCE_ID, REPORT_ID):
         raise ExecutionError(ErrorCode.INVALID_LOCATOR, FailureReason.SOURCE_REQUEST)

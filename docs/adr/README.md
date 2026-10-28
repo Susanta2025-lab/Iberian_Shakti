@@ -80,6 +80,8 @@ Links to related ADRs, architecture docs, or implementation work.
 | --- | --- |
 | [0001: OMIE day-ahead source and market-price contract](0001-omie-day-ahead-source-and-market-price-contract.md) | Accepted |
 | [0002: Local ingestion execution, immutable archive, and replay](0002-local-ingestion-immutable-archive-and-replay.md) | Accepted |
+| [0003: Multi-source query and measurement contracts](0003-multi-source-query-and-measurement-contracts.md) | Accepted |
+| [0004: Private authentication and semantic provider outcomes](0004-private-authentication-and-semantic-outcomes.md) | Accepted |
 
 Founding constraints (MIBEL scope, Snowflake as
 the planned data platform, batch inference with FastAPI serving precomputed

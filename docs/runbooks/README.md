@@ -11,7 +11,8 @@ system as designed.
 ## Status
 
 There is **no deployed production system** yet. Phase 1 local OMIE ingestion,
-archive and replay are implemented and CLOSED/PASS. Phase 2 is not started.
+archive and replay are implemented and CLOSED/PASS. Phase 2 is in progress
+(shared foundation only; new provider integrations pending).
 The [OMIE ingestion runbook](ingestion.md) covers the implemented operator path;
 the catalog below lists future procedures, not existing services.
 

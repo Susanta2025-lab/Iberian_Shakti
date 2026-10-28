@@ -9,6 +9,7 @@ from iberian_shakti.contracts.ingestion import (
     Parser,
     RawArchive,
     ResolutionResult,
+    ResolvedSource,
     Retriever,
     SourceAdapter,
     SourceRequest,
@@ -39,7 +40,27 @@ def ingest(
     resolution = adapter.resolve(request, listing_retriever)
     if resolution.source is None:
         return resolution
-    acquired = persist_retrieval(retriever.retrieve(resolution.source), archive)
+    return ingest_resolved(
+        resolution.source,
+        retriever=retriever,
+        archive=archive,
+        parser=parser,
+        parse_event_id=parse_event_id,
+        parsed_at=parsed_at,
+    )
+
+
+def ingest_resolved(
+    source: ResolvedSource,
+    *,
+    retriever: Retriever,
+    archive: RawArchive,
+    parser: Parser,
+    parse_event_id: UUID,
+    parsed_at: datetime | None = None,
+) -> IngestionResult:
+    """Shared persist-before-parse chain for already resolved OMIE/API acquisitions."""
+    acquired = persist_retrieval(retriever.retrieve(source), archive)
     if acquired.payload is None:
         return IngestionResult(retrieval=acquired.provenance)
     parsed = parser.parse(

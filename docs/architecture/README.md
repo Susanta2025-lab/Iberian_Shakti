@@ -14,7 +14,9 @@ Operational procedures live in [`docs/runbooks/`](../runbooks/README.md).
 
 ## Status
 
-Phase 0 and Phase 1 are **CLOSED/PASS**; Phase 2 is not started. Phase 1
+Phase 0 and Phase 1 are **CLOSED/PASS**; Phase 2 is in progress. Stage 1
+implements shared multi-source contracts/request security; provider packages
+remain stubs. Phase 1
 implements local OMIE ingestion, immutable archival, provenance and offline
 replay, verified by the
 [final acceptance report](../codex/reports/phase_1_stage_7_final_acceptance.md).
@@ -104,6 +106,24 @@ A successful live observation does not guarantee permanent provider compatibilit
 The [Stage 6 observations](../codex/reports/phase_1_stage_6_live_validation.md)
 establish compatibility only for those recorded interactions.
 
+## Phase 2 shared foundation
+
+[ADRs 0003/0004](../adr/README.md) record API snapshot/query identity,
+system/weather measurements, explicit source timing/geography/units, private
+fixed-origin authentication and semantic HTTP-200 outcomes. The closed record
+union includes unchanged MarketPrice; version-1 history retains its wire shape
+and version-2 API/measurement events are explicit. Raw paths/hashes/atomic
+publication and offline replay are reused without migration. A shared
+`ingest_resolved` chain handles persisted acquisition before parsing.
+
+The private request policy injects header/query credentials outside safe query
+contracts, rejects origin changes and active-credential echoes before payload
+publication, and keeps raw streaming/retry/deadline rules. It is not a general
+secret detector; authenticated nonidentity bodies fail before publication.
+No provider classification, source grammar, catalogue, XML parser or additional
+live command is implemented. See the [Stage 1 report](../codex/reports/phase_2_stage_1_report.md)
+for deterministic evidence and remaining provider-stage work.
+
 ## Planned end-to-end data flow
 
 ```
@@ -164,8 +184,9 @@ repository):
 
 - Phase 1 reads only local archive, timeout, attempt, backoff and log-level
   settings explicitly, without automatic `.env` loading or provider credentials.
-- ESIOS/ENTSO-E token and Snowflake placeholders are for future work; Phase 1
-  does not read them.
+- A separate explicit selected-provider loader reads only ESIOS_API_TOKEN or
+  ENTSOE_API_TOKEN when requested; anonymous sources read neither. No adapter
+  uses them yet. Phase 1 does not read these tokens or Snowflake placeholders.
 
 Snowflake subdirectories (`raw`, `curated`, `features`, `serving`, `ml`,
 `roles`, `tasks`, `audit`) and Terraform environment dirs (`dev`, `staging`,

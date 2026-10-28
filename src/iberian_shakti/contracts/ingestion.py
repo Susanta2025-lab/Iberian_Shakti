@@ -9,10 +9,10 @@ content identity and parser/schema versions are independent of event times.
 import hashlib
 from datetime import date
 from enum import StrEnum
-from typing import Annotated, Protocol, Self
+from typing import Annotated, Literal, Protocol, Self
 from uuid import UUID
 
-from pydantic import Field, model_validator
+from pydantic import Field, TypeAdapter, model_validator
 
 from iberian_shakti.contracts._base import (
     INGESTION_CONTRACT_VERSION,
@@ -31,7 +31,15 @@ from iberian_shakti.contracts._base import (
     UtcDatetime,
     Version,
 )
+from iberian_shakti.contracts.geography import ProfileVersion
 from iberian_shakti.contracts.market import MarketPrice
+from iberian_shakti.contracts.measurements import (
+    RecordSchema,
+    SchemaFamily,
+    SystemMeasurement,
+    WeatherMeasurement,
+)
+from iberian_shakti.contracts.queries import ApiSourceRequest
 
 
 class SelectionMode(StrEnum):
@@ -62,16 +70,39 @@ class SourceRequest(FrozenContract):
 
 
 class ResolvedSource(FrozenContract):
-    request: SourceRequest
+    request: SourceRequest | ApiSourceRequest
     filename: Filename
     observed_revision: PositiveInt | None = None
     safe_locator: SafeReference
 
     @model_validator(mode="after")
     def consistent_revision(self) -> Self:
+        if isinstance(self.request, ApiSourceRequest):
+            identity = self.request.query_identity
+            if (
+                self.observed_revision is not None
+                or self.filename != f"query-{identity}.bin"
+                or self.safe_locator
+                != (
+                    f"{self.request.source_id}/{self.request.report_id}/"
+                    f"{self.request.delivery_date}/query/{identity}"
+                )
+            ):
+                raise ValueError("API snapshot resolution must retain its safe query identity")
         if self.request.revision is not None and self.observed_revision != self.request.revision:
             raise ValueError("Exact selection must retain the requested revision")
         return self
+
+    @classmethod
+    def for_api(cls, request: ApiSourceRequest) -> Self:
+        identity = request.query_identity
+        return cls(
+            request=request,
+            filename=f"query-{identity}.bin",
+            safe_locator=(
+                f"{request.source_id}/{request.report_id}/{request.delivery_date}/query/{identity}"
+            ),
+        )
 
 
 class ErrorCode(StrEnum):
@@ -95,6 +126,14 @@ class ErrorCode(StrEnum):
     UNSUPPORTED_ENCODING = "unsupported_encoding"
     ARCHIVE_FAILURE = "archive_failure"
     INTEGRITY_FAILURE = "integrity_failure"
+    NO_DATA = "no_data"
+    AUTHENTICATION_FAILURE = "authentication_failure"
+    AUTHORIZATION_FAILURE = "authorization_failure"
+    PROVIDER_REJECTED = "provider_rejected"
+    UNSUPPORTED_DOMAIN = "unsupported_domain"
+    SCHEMA_UNSUPPORTED = "schema_unsupported"
+    TIME_SEMANTICS_UNKNOWN = "time_semantics_unknown"
+    SENSITIVE_RESPONSE = "sensitive_response"
 
 
 class ResolutionOutcome(StrEnum):
@@ -219,7 +258,7 @@ class RetrievalOutcome(StrEnum):
 
 
 class RetrievalProvenance(FrozenContract):
-    contract_version: IngestionContractVersion = INGESTION_CONTRACT_VERSION
+    contract_version: IngestionContractVersion | Literal["2.0.0"] = INGESTION_CONTRACT_VERSION
     source: ResolvedSource
     completed_at: UtcDatetime
     retrieval_event_id: UUID
@@ -234,6 +273,9 @@ class RetrievalProvenance(FrozenContract):
 
     @model_validator(mode="after")
     def consistent_retrieval(self) -> Self:
+        expected_version = "2.0.0" if isinstance(self.source.request, ApiSourceRequest) else "1.0.0"
+        if self.contract_version != expected_version:
+            raise ValueError("Retrieval version must match legacy request or API snapshot")
         if self.http is not None and self.http_status is None:
             raise ValueError("HTTP observations require HTTP status")
         if self.outcome is RetrievalOutcome.RETRIEVED:
@@ -255,6 +297,9 @@ class RetrievalProvenance(FrozenContract):
             ErrorCode.UNSUPPORTED_ENCODING,
             ErrorCode.ARCHIVE_FAILURE,
             ErrorCode.INTEGRITY_FAILURE,
+            ErrorCode.NO_DATA,
+            ErrorCode.SCHEMA_UNSUPPORTED,
+            ErrorCode.TIME_SEMANTICS_UNKNOWN,
         }:
             raise ValueError("Use the separate absence/discovery/parse/archive failure boundary")
         elif self.outcome is RetrievalOutcome.RETRY_EXHAUSTED and self.error_code in {
@@ -262,6 +307,11 @@ class RetrievalProvenance(FrozenContract):
             ErrorCode.INVALID_LOCATOR,
             ErrorCode.LOCAL_FAILURE,
             ErrorCode.SIZE_LIMIT,
+            ErrorCode.AUTHENTICATION_FAILURE,
+            ErrorCode.AUTHORIZATION_FAILURE,
+            ErrorCode.PROVIDER_REJECTED,
+            ErrorCode.UNSUPPORTED_DOMAIN,
+            ErrorCode.SENSITIVE_RESPONSE,
         }:
             raise ValueError("Permanent failures cannot exhaust retries")
         if self.raw is not None:
@@ -294,6 +344,8 @@ class RetrievalResult(FrozenContract):
 class ParseOutcome(StrEnum):
     SUCCESS = "success"
     CONTENT_FAILURE = "content_failure"
+    SOURCE_UNAVAILABLE = "source_unavailable"
+    PROVIDER_REJECTED = "provider_rejected"
 
 
 class ParseProvenance(FrozenContract):
@@ -315,15 +367,25 @@ class ParseProvenance(FrozenContract):
         if self.outcome is ParseOutcome.SUCCESS:
             if self.record_count == 0 or self.error_code is not None:
                 raise ValueError("Successful market parsing requires records and no error")
-        elif self.record_count != 0 or self.error_code not in {
-            ErrorCode.CONTENT_INVALID,
-            ErrorCode.UNSUPPORTED_ENCODING,
-            ErrorCode.INTEGRITY_FAILURE,
-        }:
+        elif (
+            self.outcome is not ParseOutcome.CONTENT_FAILURE
+            or self.record_count != 0
+            or self.error_code
+            not in {
+                ErrorCode.CONTENT_INVALID,
+                ErrorCode.UNSUPPORTED_ENCODING,
+                ErrorCode.INTEGRITY_FAILURE,
+            }
+        ):
             raise ValueError("Failed parsing requires a content/integrity code and zero records")
         if self.archive is not None and self.archive.raw != self.raw:
             raise ValueError("Parse archive must identify original raw content")
         return self
+
+    @property
+    def schema_family(self) -> SchemaFamily:
+        """Explicit in memory; never adds a field to historical price wire objects."""
+        return SchemaFamily.MARKET_PRICE
 
     @property
     def normalized_content_identity(self) -> tuple[tuple[str, str, date, str], str, str, str]:
@@ -335,9 +397,89 @@ class ParseProvenance(FrozenContract):
         )
 
 
+class MeasurementParseProvenance(FrozenContract):
+    """Version-2 semantic event; version-1 price history remains a separate reader."""
+
+    contract_version: Literal["2.0.0"] = "2.0.0"
+    retrieval_event_id: UUID
+    raw: RawContentReference
+    archive: ArchiveReference | None = None
+    parser_id: Identifier
+    parser_version: ProfileVersion
+    record_schema: RecordSchema
+    catalogue_version: ProfileVersion | None = None
+    parsed_at: UtcDatetime
+    parse_event_id: UUID
+    outcome: ParseOutcome
+    error_code: ErrorCode | None = None
+    record_count: NonnegativeInt
+
+    @property
+    def schema_family(self) -> SchemaFamily:
+        return self.record_schema.family
+
+    @property
+    def schema_version(self) -> Literal["1.0.0"]:
+        return self.record_schema.version
+
+    @model_validator(mode="after")
+    def consistent_event(self) -> Self:
+        if self.schema_family is SchemaFamily.MARKET_PRICE:
+            raise ValueError("Market-price events retain the version-1 contract")
+        permitted = {
+            ParseOutcome.SOURCE_UNAVAILABLE: {ErrorCode.NO_DATA},
+            ParseOutcome.PROVIDER_REJECTED: {
+                ErrorCode.AUTHENTICATION_FAILURE,
+                ErrorCode.AUTHORIZATION_FAILURE,
+                ErrorCode.RATE_LIMITED,
+                ErrorCode.PROVIDER_REJECTED,
+                ErrorCode.UNSUPPORTED_DOMAIN,
+            },
+            ParseOutcome.CONTENT_FAILURE: {
+                ErrorCode.CONTENT_INVALID,
+                ErrorCode.UNSUPPORTED_ENCODING,
+                ErrorCode.INTEGRITY_FAILURE,
+                ErrorCode.SCHEMA_UNSUPPORTED,
+                ErrorCode.TIME_SEMANTICS_UNKNOWN,
+            },
+        }
+        if self.outcome is ParseOutcome.SUCCESS:
+            if self.record_count == 0 or self.error_code is not None:
+                raise ValueError("Successful measurement parsing requires records and no error")
+        elif self.record_count != 0 or self.error_code not in permitted[self.outcome]:
+            raise ValueError("Semantic failure requires a matching code and zero records")
+        if self.archive is not None and self.archive.raw != self.raw:
+            raise ValueError("Parse archive must identify original raw content")
+        return self
+
+    @property
+    def normalized_content_identity(
+        self,
+    ) -> tuple[tuple[str, str, date, str], str, str, SchemaFamily, str, str | None]:
+        return (
+            self.raw.content_identity,
+            self.parser_id,
+            self.parser_version,
+            self.schema_family,
+            self.schema_version,
+            self.catalogue_version,
+        )
+
+
+type ParseEvent = ParseProvenance | MeasurementParseProvenance
+type NormalizedRecord = MarketPrice | SystemMeasurement | WeatherMeasurement
+
+_PARSE_EVENT = TypeAdapter(ParseEvent)
+
+
+def parse_event_from_json(content: bytes) -> ParseEvent:
+    """Read a closed explicit wire version; never migrate an existing event."""
+    return _PARSE_EVENT.validate_json(content)
+
+
 class ParseResult(FrozenContract):
-    provenance: ParseProvenance
-    records: tuple[MarketPrice, ...] = ()
+    provenance: ParseEvent
+    records: tuple[NormalizedRecord, ...] = ()
 
     @model_validator(mode="after")
     def consistent_records(self) -> Self:
@@ -345,8 +487,18 @@ class ParseResult(FrozenContract):
             raise ValueError("Records must match parse record count")
         raw = self.provenance.raw
         for record in self.records:
+            family = (
+                SchemaFamily.MARKET_PRICE
+                if isinstance(record, MarketPrice)
+                else record.schema_family
+            )
             if (
-                record.parse_event_id != self.provenance.parse_event_id
+                family != self.provenance.schema_family
+                or (
+                    not isinstance(record, MarketPrice)
+                    and record.retrieval_event_id != self.provenance.retrieval_event_id
+                )
+                or record.parse_event_id != self.provenance.parse_event_id
                 or record.schema_version != self.provenance.schema_version
                 or (record.source_id, record.report_id, record.delivery_date)
                 != (raw.source_id, raw.report_id, raw.delivery_date)
@@ -372,7 +524,8 @@ class IngestionResult(FrozenContract):
                 raise ValueError("Completed ingestion requires archived retrieval and parse result")
             provenance = self.parse.provenance
             if (
-                provenance.retrieval_event_id != self.retrieval.retrieval_event_id
+                provenance.contract_version != self.retrieval.contract_version
+                or provenance.retrieval_event_id != self.retrieval.retrieval_event_id
                 or provenance.raw != self.retrieval.raw
                 or provenance.archive != self.retrieval.archive
             ):
@@ -449,7 +602,7 @@ class RawArchive(Protocol):
         """Read original acquisition history for replay, without creating an event."""
         ...
 
-    def persist_parse(self, provenance: ParseProvenance) -> None:
+    def persist_parse(self, provenance: ParseEvent) -> None:
         """Persist a separate immutable parse event, never overwrite retrieval history."""
         ...
 

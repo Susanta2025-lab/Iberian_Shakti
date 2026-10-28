@@ -19,13 +19,14 @@ from pydantic import ValidationError
 from iberian_shakti.contracts.ingestion import (
     ArchiveReference,
     ErrorCode,
-    ParseProvenance,
+    ParseEvent,
     RawArchive,
     RawContentReference,
     RawPayload,
     RetrievalOutcome,
     RetrievalProvenance,
     RetrievalResult,
+    parse_event_from_json,
 )
 from iberian_shakti.ingestion.config import IngestionSettings
 from iberian_shakti.ingestion.errors import ArchiveError, ExecutionError, FailureReason
@@ -44,7 +45,7 @@ def archive_reference(raw: RawContentReference) -> ArchiveReference:
     )
 
 
-def _canonical(event: RetrievalProvenance | ParseProvenance) -> bytes:
+def _canonical(event: RetrievalProvenance | ParseEvent) -> bytes:
     return json.dumps(
         json.loads(event.model_dump_json()),
         sort_keys=True,
@@ -226,9 +227,9 @@ class LocalRawArchive:
             raise _integrity()
         return event
 
-    def persist_parse(self, provenance: ParseProvenance) -> None:
+    def persist_parse(self, provenance: ParseEvent) -> None:
         try:
-            event = ParseProvenance.model_validate_json(provenance.model_dump_json())
+            event = parse_event_from_json(provenance.model_dump_json().encode("utf-8"))
         except ValidationError as error:
             raise _integrity() from error
         if event.archive is None:
@@ -236,6 +237,8 @@ class LocalRawArchive:
         self.load(event.archive)
         retrieval = self.load_retrieval(event.archive, event.retrieval_event_id)
         if retrieval.raw != event.raw or event.parse_event_id == event.retrieval_event_id:
+            raise _integrity()
+        if (retrieval.contract_version == "2.0.0") != (event.contract_version == "2.0.0"):
             raise _integrity()
         self._publish(
             self._event_path(event.archive, "parses", event.parse_event_id),

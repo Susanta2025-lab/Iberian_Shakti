@@ -22,7 +22,9 @@ from iberian_shakti.contracts.ingestion import (
     RetrievalOutcome,
     RetrievalResult,
 )
+from iberian_shakti.contracts.queries import ApiSourceRequest
 from iberian_shakti.ingestion._http_transport import DeadlineTransport, deadline_context
+from iberian_shakti.ingestion.auth import PrivateRequestPolicy
 from iberian_shakti.ingestion.errors import ExecutionError, FailureReason
 from iberian_shakti.ingestion.retrieval import (
     DEFAULT_MAX_BYTES,
@@ -133,6 +135,7 @@ class HttpRetriever:
         clock: Callable[[], float] = time.monotonic,
         sleeper: Callable[[float], None] = time.sleep,
         now: Callable[[], datetime] = utc_now,
+        request_policy: PrivateRequestPolicy | None = None,
     ) -> None:
         validate_size(max_bytes)
         validate_size(listing_max_bytes)
@@ -145,6 +148,7 @@ class HttpRetriever:
         self.policy = policy if policy is not None else RetryPolicy()
         self.transport = transport
         self.max_bytes = max_bytes
+        self.request_policy = request_policy
         self.clock = clock
         self.sleeper = sleeper
         self.now = now
@@ -163,6 +167,12 @@ class HttpRetriever:
 
     def retrieve(self, source: ResolvedSource) -> RetrievalResult:
         validate_source(source)
+        if isinstance(source.request, ApiSourceRequest) and self.request_policy is None:
+            raise ExecutionError(ErrorCode.INVALID_LOCATOR, FailureReason.CONFIGURATION)
+        if self.request_policy is not None and self.request_policy.contains_credential(
+            source.model_dump_json().encode("utf-8")
+        ):
+            raise ExecutionError(ErrorCode.INVALID_LOCATOR, FailureReason.CONFIGURATION)
         classifier = self.classify_unavailable
         acquired = self._acquire(
             self._url(lambda: self.resolve_url(source)),
@@ -209,6 +219,10 @@ class HttpRetriever:
         max_bytes: int,
         classify_unavailable: Callable[[int], ErrorCode | None] | None,
     ) -> _Acquisition:
+        private = self.request_policy.prepare(url) if self.request_policy is not None else None
+        headers = dict(private.headers) if private is not None else {"Accept-Encoding": "identity"}
+        if private is not None:
+            url = private.url
         start = self.clock()
         operation_deadline = start + self.policy.operation_timeout_seconds
         # A supplied transport must implement finite phase timeouts and no
@@ -249,7 +263,7 @@ class HttpRetriever:
                     with client.stream(
                         "GET",
                         url,
-                        headers={"Accept-Encoding": "identity"},
+                        headers=headers,
                         timeout=httpx.Timeout(
                             timeout, connect=timeout, read=timeout, write=timeout, pool=timeout
                         ),
@@ -257,6 +271,12 @@ class HttpRetriever:
                         self._check_deadline(deadline)
                         status = response.status_code
                         observations = _observations(response)
+                        guard = self.request_policy
+                        if guard is not None and any(
+                            guard.contains_credential(value.encode("utf-8"))
+                            for value in response.headers.values()
+                        ):
+                            observations = None
                         if status == 404 and classify_unavailable is not None:
                             code = classify_unavailable(status)
                             if code in {ErrorCode.NOT_FOUND, ErrorCode.NOT_LISTED}:
@@ -278,7 +298,22 @@ class HttpRetriever:
                                     observations=observations,
                                 )
                         if status == 200:
+                            if (
+                                guard is not None
+                                and guard.authentication is not None
+                                and response.headers.get("content-encoding", "identity").lower()
+                                != "identity"
+                            ):
+                                # Unknown encoded content cannot be checked for a credential echo.
+                                # Reject before publication, without decoding/altering raw bytes.
+                                raise ExecutionError(
+                                    ErrorCode.UNSUPPORTED_ENCODING, FailureReason.ENCODING
+                                )
                             content = self._read(response, deadline, max_bytes)
+                            if guard is not None and guard.contains_credential(content):
+                                raise ExecutionError(
+                                    ErrorCode.SENSITIVE_RESPONSE, FailureReason.SENSITIVE_RESPONSE
+                                )
                             logger.info(
                                 "retrieval_completed",
                                 extra={
@@ -299,6 +334,15 @@ class HttpRetriever:
                             retry_after = self._retry_after(response.headers.get("retry-after"))
                             raise ExecutionError(
                                 ErrorCode.RATE_LIMITED, FailureReason.RATE_LIMIT, retryable=True
+                            )
+                        if guard is not None and status in {401, 403}:
+                            raise ExecutionError(
+                                ErrorCode.AUTHENTICATION_FAILURE
+                                if status == 401
+                                else ErrorCode.AUTHORIZATION_FAILURE,
+                                FailureReason.AUTHENTICATION
+                                if status == 401
+                                else FailureReason.AUTHORIZATION,
                             )
                         raise ExecutionError(
                             ErrorCode.HTTP_FAILURE,

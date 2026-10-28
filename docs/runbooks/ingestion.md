@@ -1,8 +1,9 @@
 # Runbook: Local OMIE ingestion and replay
 
 Applies to the implemented Phase 1 local workflow. Phase 1 is CLOSED/PASS;
-Phase 2 is not started. There is no scheduler or deployed production service.
-Last verified offline: 2026-10-27. Live evidence is the historical
+Phase 2 is in progress; its new provider integrations remain unimplemented.
+There is no scheduler or deployed production service.
+Last verified offline: 2026-10-28 (Stage 1 shared changes and Phase 1 regressions). Live evidence is the historical
 [Stage 6 report](../codex/reports/phase_1_stage_6_live_validation.md);
 Stage 7 made no provider request.
 
@@ -209,6 +210,30 @@ differ. A parser-version change can change normalized-content identity without
 changing the original raw object or acquisition history. Replay supports
 parser upgrades, reprocessing, reproducibility and auditing, including repeat
 diagnosis of malformed reports.
+
+## Phase 2 shared contracts and selected credentials
+
+Stage 1 adds pure API snapshot queries and system/weather records. API
+`delivery_date` is the archive query partition; requested UTC window and actual
+measurement support are separate. Legacy SourceRequest/MarketPrice/version-1
+metadata remain unchanged; new API retrieval and measurement-parse events use
+version 2. Reuse the same archive/replay functions; never migrate or edit old
+sidecars. `ingest_resolved` shares persistence-before-parsing with OMIE.
+
+`load_provider_auth(source_id, environ=...)` explicitly reads only the selected
+ESIOS_API_TOKEN or ENTSOE_API_TOKEN. It does not load .env; anonymous sources
+need neither. Secret settings dumps/repr exclude values. `PrivateRequestPolicy`
+pins the HTTPS origin and supplies x-api-key or securityToken only privately.
+No provider adapter/authentication success is implied by these shared utilities.
+
+A safe complete HTTP-200 body can receive a separate version-2 no-data/provider
+rejection/profile failure event after archival. Such a result is not successful
+normalized data and retains its real HTTP status. An active credential echo is
+rejected before normal payload publication, without redaction or a retry. Only
+safe failure status/attempt/code metadata is returned. Authenticated nonidentity
+coding fails before publication because the narrow echo guard does not decode
+arbitrary encodings. Provider-specific commands and recovery instructions await
+those provider stages; Stage 1 adds no live invocation.
 
 ## Deferred scope
 

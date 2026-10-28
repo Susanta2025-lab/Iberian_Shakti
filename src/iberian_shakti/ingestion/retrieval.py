@@ -19,6 +19,7 @@ from iberian_shakti.contracts.ingestion import (
     RetrievalProvenance,
     RetrievalResult,
 )
+from iberian_shakti.contracts.queries import ApiSourceRequest
 from iberian_shakti.ingestion.errors import ExecutionError, FailureReason
 
 DEFAULT_MAX_BYTES = 4 * 1024 * 1024
@@ -93,6 +94,7 @@ def result_for(
     return RetrievalResult(
         payload=payload,
         provenance=RetrievalProvenance(
+            contract_version="2.0.0" if isinstance(source.request, ApiSourceRequest) else "1.0.0",
             source=source,
             completed_at=completed_at,
             retrieval_event_id=event_id,

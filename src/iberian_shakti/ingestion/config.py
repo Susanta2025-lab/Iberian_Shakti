@@ -5,9 +5,15 @@ import re
 from collections.abc import Mapping
 from pathlib import Path
 
-from pydantic import BaseModel, ConfigDict, Field, ValidationError, field_validator
+from pydantic import BaseModel, ConfigDict, Field, SecretStr, ValidationError, field_validator
 
 from iberian_shakti.common.logging import LogLevel
+from iberian_shakti.ingestion.auth import (
+    HeaderAuthentication,
+    PrivateAuthentication,
+    QueryAuthentication,
+    validate_credential,
+)
 
 
 class ConfigurationError(ValueError):
@@ -93,3 +99,41 @@ def load_ingestion_settings(environ: Mapping[str, str] | None = None) -> Ingesti
             }
         )
         raise ConfigurationError("Invalid ingestion settings: " + ", ".join(fields)) from None
+
+
+class ProviderSecretSettings(BaseModel):
+    """Execution-only secret settings; dumps/repr deliberately contain no value."""
+
+    model_config = ConfigDict(strict=True, frozen=True, extra="forbid", hide_input_in_errors=True)
+
+    token: SecretStr = Field(exclude=True, repr=False)
+
+    @field_validator("token")
+    @classmethod
+    def valid_secret(cls, value: SecretStr) -> SecretStr:
+        validate_credential(value.get_secret_value())
+        return value
+
+
+def load_provider_auth(
+    source_id: str, environ: Mapping[str, str] | None = None
+) -> PrivateAuthentication | None:
+    """Read one selected secret explicitly; anonymous sources read no environment.
+
+    Real values are never inspected at import time or required by normal tests.
+    Unrelated provider/platform settings and .env files are not read.
+    """
+    if source_id not in {"esios", "entsoe"}:
+        return None
+    name = "ESIOS_API_TOKEN" if source_id == "esios" else "ENTSOE_API_TOKEN"
+    environment = os.environ if environ is None else environ
+    try:
+        raw = environment.get(name)
+        if not isinstance(raw, str):
+            raise ValueError("Missing credential")
+        settings = ProviderSecretSettings(token=SecretStr(raw))
+    except (ValueError, TypeError):
+        raise ConfigurationError("Missing or invalid selected-provider credential") from None
+    if source_id == "esios":
+        return HeaderAuthentication(settings.token)
+    return QueryAuthentication(settings.token)
