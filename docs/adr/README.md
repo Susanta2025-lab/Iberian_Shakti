@@ -82,6 +82,8 @@ Links to related ADRs, architecture docs, or implementation work.
 | [0002: Local ingestion execution, immutable archive, and replay](0002-local-ingestion-immutable-archive-and-replay.md) | Accepted |
 | [0003: Multi-source query and measurement contracts](0003-multi-source-query-and-measurement-contracts.md) | Accepted |
 | [0004: Private authentication and semantic provider outcomes](0004-private-authentication-and-semantic-outcomes.md) | Accepted |
+| [0005: REN production profile and unresolved time gate](0005-ren-source-profile-and-time-gate.md) | Gate superseded by 0006 for profile 0.2.0; retained for 0.1.0 history |
+| [0006: REN provisional source-period power semantics](0006-ren-provisional-period-semantics.md) | Accepted |
 
 Founding constraints (MIBEL scope, Snowflake as
 the planned data platform, batch inference with FastAPI serving precomputed

@@ -112,6 +112,27 @@ def weather_record(**updates):
     )
 
 
+def test_provider_period_power_is_exact_mw_with_interval_and_no_energy_semantics():
+    support = SupportInterval(start_utc=NOW, end_utc=NOW + timedelta(minutes=15))
+    record = system_record(timing=support, statistic=Statistic.PROVIDER_PERIOD_VALUE)
+    assert record.value.as_tuple() == Decimal("12.3400").as_tuple()
+    assert record.unit == "MW"
+    assert record.statistic is not Statistic.MEAN
+    assert SystemMeasurement.model_validate_json(record.model_dump_json()) == record
+    with pytest.raises(ValidationError):
+        system_record(timing=support, statistic=Statistic.PROVIDER_PERIOD_VALUE, unit="MWh")
+    with pytest.raises(ValidationError):
+        system_record(statistic=Statistic.PROVIDER_PERIOD_VALUE)  # Instant has no source period.
+    with pytest.raises(ValidationError):
+        weather_record(
+            timing=support,
+            statistic=Statistic.PROVIDER_PERIOD_VALUE,
+            variable=WeatherVariable.SHORTWAVE_RADIATION,
+            unit="W/m²",
+            height_m=None,
+        )
+
+
 def test_query_identity_is_canonical_and_snapshot_only():
     query = api_request()
     reverse = api_request(query=SystemQuery(area=AREA, series_ids=("wind", "load")))

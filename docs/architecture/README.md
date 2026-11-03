@@ -15,8 +15,9 @@ Operational procedures live in [`docs/runbooks/`](../runbooks/README.md).
 ## Status
 
 Phase 0 and Phase 1 are **CLOSED/PASS**; Phase 2 is in progress. Stage 1
-implements shared multi-source contracts/request security; provider packages
-remain stubs. Phase 1
+implements shared multi-source contracts/request security. Stage 2 implements
+REN acquisition/chart validation and provisional empirical source-period UTC
+normalization under profile 0.2.0. ESIOS, ENTSO-E and Open-Meteo remain pending. Phase 1
 implements local OMIE ingestion, immutable archival, provenance and offline
 replay, verified by the
 [final acceptance report](../codex/reports/phase_1_stage_7_final_acceptance.md).
@@ -120,8 +121,18 @@ The private request policy injects header/query credentials outside safe query
 contracts, rejects origin changes and active-credential echoes before payload
 publication, and keeps raw streaming/retry/deadline rules. It is not a general
 secret detector; authenticated nonidentity bodies fail before publication.
-No provider classification, source grammar, catalogue, XML parser or additional
-live command is implemented. See the [Stage 1 report](../codex/reports/phase_2_stage_1_report.md)
+REN supplies a pinned production chart profile. Historical profile 0.1.0 blocked
+normalization ([ADR 0005](../adr/0005-ren-source-profile-and-time-gate.md));
+[ADR 0006](../adr/0006-ren-provisional-period-semantics.md) accepts profile 0.2.0:
+15-minute Europe/Lisbon interval-start periods, `provisional_empirical`, with
+ordered DST mapping. Strict full-day label validation precedes emission of
+source-native Decimal MW `provider_period_value` records. This additive system
+statistic requires interval support and cannot represent MWh; it does not prove
+an arithmetic mean or authorize energy conversion. Weather semantics and legacy
+serialization remain unchanged. The shared runner/archive/replay are unchanged.
+New parse events can reinterpret exact legacy acquisitions without rewriting
+their original query or failed parse events. No new live command or XML
+parser is implemented. See the [Stage 1 report](../codex/reports/phase_2_stage_1_report.md)
 for deterministic evidence and remaining provider-stage work.
 
 ## Planned end-to-end data flow
@@ -176,8 +187,11 @@ convenience.
 | `infra/terraform/` | Infrastructure as code |
 | `tests/` | `unit`, `integration`, `contracts`, `data`, `e2e` |
 
-OMIE is implemented; `esios`, `entsoe`, `ren` and `weather` remain stubs.
-REN, ESIOS, ENTSO-E, Open-Meteo and MIBGAS integrations are future scope.
+OMIE is implemented. REN acquisition/validation and provisional empirical
+normalization are implemented; authoritative label/statistic/fold definitions
+remain unresolved refinements. `esios`, `entsoe`
+and `weather` remain stubs: ESIOS pending, ENTSO-E pending, Open-Meteo pending.
+MIBGAS remains deferred. Phase 2 is in progress.
 
 Environment configuration (see `.env.example`; do not add secrets to the
 repository):
@@ -185,8 +199,8 @@ repository):
 - Phase 1 reads only local archive, timeout, attempt, backoff and log-level
   settings explicitly, without automatic `.env` loading or provider credentials.
 - A separate explicit selected-provider loader reads only ESIOS_API_TOKEN or
-  ENTSOE_API_TOKEN when requested; anonymous sources read neither. No adapter
-  uses them yet. Phase 1 does not read these tokens or Snowflake placeholders.
+  ENTSOE_API_TOKEN when requested; anonymous sources read neither. No authenticated adapter
+  uses them yet; REN remains anonymous. Phase 1 does not read these tokens or Snowflake placeholders.
 
 Snowflake subdirectories (`raw`, `curated`, `features`, `serving`, `ml`,
 `roles`, `tasks`, `audit`) and Terraform environment dirs (`dev`, `staging`,

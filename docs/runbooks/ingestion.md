@@ -1,9 +1,10 @@
 # Runbook: Local OMIE ingestion and replay
 
 Applies to the implemented Phase 1 local workflow. Phase 1 is CLOSED/PASS;
-Phase 2 is in progress; its new provider integrations remain unimplemented.
+Phase 2 is in progress; REN acquisition and provisional empirical source-period
+UTC normalization are implemented. ESIOS, ENTSO-E and Open-Meteo pending.
 There is no scheduler or deployed production service.
-Last verified offline: 2026-10-28 (Stage 1 shared changes and Phase 1 regressions). Live evidence is the historical
+Last verified offline: 2026-11-03 (revised REN Stage 2 and Phase 1/Stage 1 regressions). Live evidence is the historical
 [Stage 6 report](../codex/reports/phase_1_stage_6_live_validation.md);
 Stage 7 made no provider request.
 
@@ -235,9 +236,80 @@ coding fails before publication because the narrow echo guard does not decode
 arbitrary encodings. Provider-specific commands and recovery instructions await
 those provider stages; Stage 1 adds no live invocation.
 
+## REN production and provisional empirical source periods
+
+Stage 2 implements only `ElectricityProductionBreakdownDaily`, anonymous GET at
+`https://servicebus.ren.pt/datahubapi/electricity/ElectricityProductionBreakdownDaily`,
+`culture=en-US`, canonical date. No credential or unrelated environment is read.
+No second aggregate request, discovery, scraping or polling occurs.
+
+Library composition: `ren.identity.request_for(source_day)` →
+`RenAdapter().resolve(request)` → `RenAdapter().retriever(retrieval_event_id=...)`
+→ shared `ingest_resolved`, passing the adapter's parser and LocalRawArchive.
+Offline tests inject MockTransport through the adapter's retriever factory.
+There is no new REN live command; source-profile observations are not Stage 8
+acceptance. Default pytest remains network-denied.
+
+The safe report ID is `ElectricityProductionBreakdownDaily.en-US.v0.2.0`, so
+culture and pinned profile participate in existing canonical query identity.
+The query window spans the physical Europe/Lisbon civil day, converted to UTC
+under the explicitly provisional empirical profile: 23, 24 or 25 elapsed hours.
+
+Profile 0.2.0 requires all eleven selected source concepts. Consumption maps to
+load; Wind/Solar/Hydro/Natural Gas/Biomass/Other Thermal/Coal/Wave map to generation
+with explicit technology; Import/Export map to aggregate external interchange,
+with no Spanish counterparty or asserted physical-versus-commercial statistic.
+REN's native perimeter is retained as provider-defined Portuguese system data.
+Pumping, Consumption + Storage, Consumption of Batteries and Battery Injection
+are explicitly unselected. Unknown/duplicate names, fields, units or malformed
+values fail visibly. Presentation strings are bounded inert data. No derived
+share, total, energy or filling is performed.
+
+Original safe complete 200 bytes are archived before strict UTF-8 JSON validation,
+regardless of MIME. Limits: 1 MiB, 32 series, 10,000 values, depth 12, 30,000 JSON
+nodes, strings 4,096 characters, numeric tokens 128 characters, object keys 64.
+Every selected and unselected array must be numeric, finite, non-null and aligned.
+Decimals have no float intermediate or rounding. MW must be explicit. Duplicate
+JSON keys/nonfinite values/unknown schema and content coding fail safely.
+
+The parser generates the physical Europe/Lisbon quarter-hour sequence by UTC
+stepping between independently converted local midnights. All source labels must
+match it in exact order: 96 ordinary, 92 spring (01h absent), 100 autumn (two 01h
+blocks assigned fold 0 then fold 1 by position). Unexpected counts, duplicates
+or ordering fail `content_invalid` with zero records; no sorting/deduplication.
+Valid days emit eleven SystemMeasurement records per period, with source Decimal
+MW unchanged, interval support and `provider_period_value`. No MW-to-MWh
+conversion, instantaneous claim or arithmetic-mean claim exists. Status is
+`provisional_empirical` in the versioned profile, separate from the provider's
+provisional publication status. Authoritative MW statistic, label placement and
+autumn fold contract remain unresolved; they no longer block forecasting inputs.
+
+The shared three-attempt, 1/2-second backoff and 10/30/93-second phase/attempt/
+operation budgets apply. Permanent failures terminate; 404 has no REN-specific
+no-data interpretation. Future/missing/error forms remain unverified. Keep
+successive deliberate calls sequential and at least one second apart.
+
+Replay uses the existing `replay()` function and REN parser, then explicitly
+persists the new parse event. It verifies original hash/retrieval linkage and
+reproduces the same values/identities or failure, never refetches or downloads
+metadata. Same-query identical bytes reuse content with distinct retrieval events; corrections retain
+both hashes/histories. Do not overwrite failed payloads to repair semantics.
+Fixtures are synthetic/checksummed; real observations stay outside Git pending
+rights approval. Exact legacy 0.1.0 acquisitions are also accepted by the parser
+under 0.2.0; new fetches accept only 0.2.0 identity. Legacy report/query/raw/events
+stay unchanged, with interpretation identified by native/parse profile 0.2.0.
+Each record's day, series and physical interval recover its zero-based array
+position and label from original bytes through retrieval/parse/raw-hash linkage.
+Future authoritative clarification requires a new version and new replay parse
+events, preserving all old events. See the original
+[ADR 0005](../adr/0005-ren-source-profile-and-time-gate.md),
+[ADR 0006](../adr/0006-ren-provisional-period-semantics.md)
+and the [Stage 2 report](../codex/reports/phase_2_stage_2_ren_report.md).
+
 ## Deferred scope
 
-REN, ESIOS, ENTSO-E, Open-Meteo and MIBGAS; Snowflake, dbt, feature engineering,
+ESIOS, ENTSO-E, Open-Meteo and
+MIBGAS remain unimplemented. Snowflake, dbt, feature engineering,
 ML training, model registry, batch forecasts, FastAPI, dashboard, production
 scheduler and infrastructure deployment remain future work. No paid-resource
 action is part of this local workflow. See the

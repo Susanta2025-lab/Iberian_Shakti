@@ -83,6 +83,9 @@ class Statistic(StrEnum):
     INSTANT = "instant"
     MEAN = "mean"
     SUM = "sum"
+    # Source-period system power; precise aggregation unknown. Not a confirmed
+    # interval mean and never sufficient to authorize MW -> MWh conversion.
+    PROVIDER_PERIOD_VALUE = "provider_period_value"
 
 
 class _Measurement(FrozenContract):
@@ -103,7 +106,7 @@ class _Measurement(FrozenContract):
     @model_validator(mode="after")
     def consistent_time_statistic(self) -> Self:
         if (self.statistic is Statistic.INSTANT) != isinstance(self.timing, ValidInstant):
-            raise ValueError("Instant statistics need an instant; means/sums need an interval")
+            raise ValueError("Instant statistics need an instant; period values need an interval")
         if self.kind is ValueKind.ACTUAL and (
             self.source_times.issue_time is not None or self.source_times.model_run_time is not None
         ):
@@ -185,7 +188,7 @@ class SystemMeasurement(_Measurement):
         if isinstance(self.measure, InterchangeMeasure) == isinstance(self.geography, Area):
             raise ValueError("Interchange needs a border/boundary; load/generation need an area")
         if (self.unit == "MWh") != (self.statistic is Statistic.SUM):
-            raise ValueError("MWh is interval energy; MW is instantaneous or mean power")
+            raise ValueError("MWh requires sum; MW supports instant, mean or provider-period power")
         return self
 
 
@@ -209,6 +212,8 @@ class WeatherMeasurement(_Measurement):
 
     @model_validator(mode="after")
     def consistent_weather(self) -> Self:
+        if self.statistic is Statistic.PROVIDER_PERIOD_VALUE:
+            raise ValueError("Provider-period values are supported only for system power")
         if self.status == "missing":
             if self.value is not None or self.missing_reason is None:
                 raise ValueError("Missing weather needs null value and an explicit reason")

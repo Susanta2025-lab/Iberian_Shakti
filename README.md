@@ -16,12 +16,14 @@ serving-data platform.
 
 - Phase 0 — CLOSED/PASS
 - Phase 1 — CLOSED/PASS
-- Phase 2 — in progress (Stage 1 shared foundation; provider integrations pending)
+- Phase 2 — in progress (Stage 2 REN uses a provisional empirical source-period profile)
 
 The [Phase 1 final acceptance report](docs/codex/reports/phase_1_stage_7_final_acceptance.md)
 traces all 22 original acceptance criteria to implementation and verification.
 Phase 2 uses the single [readiness assessment](docs/codex/reports/phase_2_readiness_assessment.md)
 and [Stage 1 report](docs/codex/reports/phase_2_stage_1_report.md).
+The [REN Stage 2 report](docs/codex/reports/phase_2_stage_2_ren_report.md) records
+the original time-semantics gate and the revised Stage 2 acceptance decision.
 
 Present today:
 
@@ -38,14 +40,21 @@ Present today:
   exact/discovery observations and offline replay recorded in the
   [Stage 6 report](docs/codex/reports/phase_1_stage_6_live_validation.md)
 - Shared API snapshot queries, typed system/weather records, versioned semantic
-  outcomes and a private authentication boundary; all new provider packages remain stubs
+  outcomes and a private authentication boundary
+- REN `ElectricityProductionBreakdownDaily` fixed anonymous acquisition, strict
+  Decimal chart/selection validation and offline normalized replay. Profile 0.2.0
+  uses provisional empirical Europe/Lisbon interval-start periods (92/96/100
+  quarters); source MW values remain `provider_period_value`, without MWh
+  conversion or a claimed mean/instant statistic
+  ([ADR 0006](docs/adr/0006-ren-provisional-period-semantics.md)).
 - 968 Phase 1 regression cases retained alongside Stage 1 tests; default pytest
   denies network access, including DNS, outbound socket operations and real HTTPX transports
 - Directory skeletons for `apps/`, `snowflake/`, `dbt/`, `infra/terraform/`,
   `docker/`, and `.github/workflows/`
 
-Future scope: REN, ESIOS, ENTSO-E and Open-Meteo integrations; MIBGAS is deferred;
-Snowflake,
+REN's authoritative MW statistic, label definition and autumn fold contract
+remain unresolved refinements, documented in its provisional profile. ESIOS,
+ENTSO-E and Open-Meteo are pending; MIBGAS is deferred. Snowflake,
 dbt, feature engineering, ML training, model registry, batch forecasts, FastAPI,
 dashboard, production scheduler and infrastructure deployment. These are not
 implemented. Phase 1 operates locally; it is not a deployed production service.
@@ -91,7 +100,7 @@ pre-commit install
 The ingestion settings loader does **not** load `.env`. Export settings
 explicitly; see the [runbook](docs/runbooks/ingestion.md). OMIE requires no
 ESIOS, ENTSO-E or Snowflake credentials. Never commit `.env` or secrets.
-Host IANA timezone data providing `Europe/Madrid` is required.
+Host IANA timezone data providing `Europe/Madrid` and `Europe/Lisbon` is required.
 
 Quality gates:
 
