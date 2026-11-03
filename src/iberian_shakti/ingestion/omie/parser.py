@@ -26,7 +26,11 @@ from iberian_shakti.ingestion.omie.identity import (
     PARSER_VERSION,
     validate_resolved,
 )
-from iberian_shakti.ingestion.retrieval import require_identity_encoding, source_context
+from iberian_shakti.ingestion.retrieval import (
+    DEFAULT_MAX_BYTES,
+    require_identity_encoding,
+    source_context,
+)
 
 HEADER = "MARGINALPDBC;"
 # Bounded field widths follow the selected numeric layout, not generic CSV guessing.
@@ -60,6 +64,10 @@ class OmieParser:
             or retrieval.raw != payload.reference
         ):
             code = ErrorCode.INTEGRITY_FAILURE
+        elif len(payload.content) > DEFAULT_MAX_BYTES:
+            # Direct parsing and replay must retain the same work bound as
+            # acquisition, even for objects produced by a different retriever.
+            code = ErrorCode.CONTENT_INVALID
         else:
             try:
                 RawPayload(reference=payload.reference, content=payload.content)

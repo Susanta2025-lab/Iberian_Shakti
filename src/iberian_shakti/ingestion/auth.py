@@ -8,7 +8,7 @@ import json
 import re
 from dataclasses import dataclass, field
 from typing import Literal
-from urllib.parse import quote, quote_plus
+from urllib.parse import quote, quote_plus, unquote_to_bytes
 
 import httpx
 from pydantic import SecretStr
@@ -17,6 +17,29 @@ from iberian_shakti.contracts.ingestion import ErrorCode
 from iberian_shakti.ingestion.errors import ExecutionError, FailureReason
 
 _XML_REFERENCE = re.compile(r"&#(?:x[0-9a-fA-F]+|[0-9]+);|&(?:amp|lt|gt|quot|apos);")
+_JSON_ESCAPE = re.compile(rb'\\(?:["\\/]|u[0-9a-fA-F]{4})')
+
+
+def _json_escape(match: re.Match[bytes]) -> bytes:
+    value = match.group()
+    if value.startswith(b"\\u"):
+        number = int(value[2:], 16)
+        # Credentials are printable ASCII. No Unicode normalization, surrogate
+        # assembly or recursive decoding is needed to recognize their echoes.
+        return bytes([number]) if 33 <= number <= 126 else value
+    return value[1:]
+
+
+def _contains_form(data: bytes, secret: str) -> bool:
+    forms = (secret, quote(secret, safe=""), quote_plus(secret), json.dumps(secret)[1:-1])
+    if any(value.encode("utf-8") in data for value in forms):
+        return True
+    literal = secret.encode("ascii")
+    # One pass per supported encoding, including mixed literal/escaped text.
+    # Inputs are already byte-bounded; no body parser or recursive decoder runs.
+    return (b"%" in data and literal in unquote_to_bytes(data)) or (
+        b"\\" in data and literal in _JSON_ESCAPE.sub(_json_escape, data)
+    )
 
 
 def _xml_reference(match: re.Match[str]) -> str:
@@ -30,7 +53,7 @@ def _xml_reference(match: re.Match[str]) -> str:
         if len(digits) > (6 if hexadecimal else 7):
             return value
         number = int(digits, 16 if hexadecimal else 10)
-        return chr(number) if 0 < number <= 0x10FFFF else value
+        return chr(number) if 0 < number <= 0x10FFFF and not 0xD800 <= number <= 0xDFFF else value
     return {"&amp;": "&", "&lt;": "<", "&gt;": ">", "&quot;": '"', "&apos;": "'"}[value]
 
 
@@ -75,8 +98,9 @@ class PrivateRequest:
 class PrivateRequestPolicy:
     """Execution-owned fixed origin and optional auth, never query metadata.
 
-    The echo guard checks only the active credential's literal/quoted/escaped
-    forms. It is not general DLP or a decoder for arbitrary response encodings.
+    The echo guard checks only the active credential's literal/quoted forms,
+    single-pass percent/JSON escapes and optional XML character references.
+    It is not general DLP or a decoder for arbitrary response encodings.
     """
 
     origin: str
@@ -134,8 +158,7 @@ class PrivateRequestPolicy:
         if auth is None:
             return False
         secret = auth.credential.get_secret_value()
-        forms = (secret, quote(secret, safe=""), quote_plus(secret), json.dumps(secret)[1:-1])
-        if any(value.encode("utf-8") in data for value in forms):
+        if _contains_form(data, secret):
             return True
         if self.xml_character_references:
             try:
@@ -144,5 +167,5 @@ class PrivateRequestPolicy:
                 decoded = _XML_REFERENCE.sub(_xml_reference, data.decode("utf-8"))
             except UnicodeDecodeError:
                 return False
-            return any(value in decoded for value in forms)
+            return _contains_form(decoded.encode("utf-8"), secret)
         return False
