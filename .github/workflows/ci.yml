@@ -39,3 +39,6 @@ jobs:
 
       - name: Pytest
         run: python -m pytest
+
+      - name: Pre-commit
+        run: pre-commit run --all-files
