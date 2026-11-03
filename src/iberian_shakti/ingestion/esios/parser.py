@@ -46,6 +46,8 @@ logger = logging.getLogger(__name__)
 class EsiosParser:
     parser_id = profile.PARSER_ID
     parser_version = profile.PARSER_VERSION
+    profile_version = profile.PROFILE_VERSION
+    bounded = False
 
     def parse(
         self,
@@ -71,7 +73,7 @@ class EsiosParser:
             code = error.code
         else:
             try:
-                validate_resolved(retrieval.source)
+                validate_resolved(retrieval.source, bounded=self.bounded)
                 require_identity_encoding(retrieval)
                 request = retrieval.source.request
                 assert isinstance(request, ApiSourceRequest)
@@ -82,11 +84,13 @@ class EsiosParser:
                 # including equal duplicates; there is no sorting/deduplication.
                 if any(later <= earlier for earlier, later in pairwise(times)):
                     raise ValueError("Unordered or duplicate observations")
-                # Retain a possible provider-inclusive end sample unchanged.
-                # QueryWindow declares requested context, not returned support;
-                # real end-date inclusivity remains a controlled-live check.
+                # Legacy 0.1.0 retains its possible inclusive end sample.
+                # Explicit 0.2.0 enforces half-open support after translation
+                # to the provider's inclusive last-sample wire endpoint.
                 if times[0] < request.window.start_utc or times[-1] > request.window.end_utc:
                     raise ValueError("Observation outside the bounded request")
+                if self.bounded and times[-1] == request.window.end_utc:
+                    raise ValueError("Observation at exclusive logical end")
                 source_times = SourceTimes(
                     updated_at=(
                         timestamp(indicator.values_updated_at)
@@ -110,7 +114,7 @@ class EsiosParser:
                         cadence_seconds=profile.CADENCE_SECONDS,
                         source_times=source_times,
                         native=NativeSeries(
-                            series_id=str(indicator.id), profile_version=profile.PROFILE_VERSION
+                            series_id=str(indicator.id), profile_version=self.profile_version
                         ),
                         retrieval_event_id=retrieval.retrieval_event_id,
                         parse_event_id=parse_event_id,
@@ -142,7 +146,7 @@ class EsiosParser:
             parser_id=self.parser_id,
             parser_version=self.parser_version,
             record_schema=RecordSchema(family=SchemaFamily.SYSTEM_MEASUREMENT),
-            catalogue_version=profile.PROFILE_VERSION,
+            catalogue_version=self.profile_version,
             parsed_at=parsed_at,
             parse_event_id=parse_event_id,
             outcome=ParseOutcome.SUCCESS if code is None else ParseOutcome.CONTENT_FAILURE,
@@ -160,3 +164,11 @@ class EsiosParser:
             },
         )
         return ParseResult(provenance=event, records=records)
+
+
+class BoundedEsiosParser(EsiosParser):
+    """Explicit 0.2.0 half-open support; legacy parser remains unchanged."""
+
+    parser_version = profile.BOUNDED_VERSION
+    profile_version = profile.BOUNDED_VERSION
+    bounded = True

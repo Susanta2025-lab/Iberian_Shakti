@@ -109,6 +109,112 @@ the stored metadata, not in the CLI summary.
 Passing local tests does not guarantee successful live validation.
 A successful live observation does not guarantee permanent provider compatibility.
 
+## Phase 2 Stage 8 controlled validation
+
+The separate operator command uses the seven fixed Stage 8 selections. It is
+never invoked by pytest, pre-commit or CI. Without `--live` it refuses before
+credential or HTTP construction:
+
+```bash
+python -m iberian_shakti.ingestion.phase2_live \
+  --live --archive-root /tmp/iberian-shakti-phase2-stage8-live-UNIQUE-RUN
+```
+
+Explicit operator authorization and valid exported `ESIOS_API_TOKEN` and
+`ENTSOE_API_TOKEN` are required before **any** provider request. The application
+does not load `.env`; arrange only these two variables in the execution process
+without printing or copying their values. Anonymous providers remain credential-free.
+Use a new, empty, absolute, external operator archive whose final directory name
+contains `live`. Repository directories, fixture/test paths and symlink aliases
+are rejected. Keep real provider bytes outside Git and test fixtures.
+
+The historical date is fixed at 2026-10-24. ICON-EU uses the next UTC day relative
+to the actual execution clock, with explicit `models=icon_eu` and only PT.lisbon.
+No provider/date/model discovery or automatic fallback is available. The runner
+does not issue optional ESIOS metadata requests; insufficient response metadata
+must be reported as a gap rather than a new discovery request.
+
+Whole-run limits are eight logical requests, 24 attempts, 32 MiB attempted body
+bytes and 900 seconds. The command executes seven logical requests only, with
+unchanged production retries and at least 1.1 seconds between attempt starts.
+Failed/retried body chunks count. A second conservative 32 MiB inbound socket-read
+cap includes headers/framing and bounds even bytes buffered before rejection.
+Socket read sizes shrink before each read. A main-thread POSIX alarm bounds DNS,
+parsing and local work as well as transport; a pre-existing timer fails preflight.
+Budget exhaustion and safety/integrity failures stop further network operations.
+Normal provider failures remain explicit and do not trigger manual retries.
+
+The original-byte `LocalRawArchive` and immutable retrieval/parse events are
+reused. `stage8-manifest.json` is a mutable local run index, separate from those
+immutable evidence objects; it contains safe queries, hashes/references, UUIDs,
+counts, outcomes, replay digests and cumulative/remaining budgets, never bodies,
+private request material or provider error prose. Exit 0 means seven successful
+parses and equal replay; exit 2 is authorization/local preflight refusal; exit 3
+records live gaps or a safety failure. Product-specific live metadata review is
+also required before a Stage 8 PASS; parser success alone is insufficient.
+
+The live command subsequently replays every archived response, including failed
+semantic parses, while explicitly denying HTTP client/retriever construction,
+provider credential loading and socket/DNS activity. It compares full record
+content and parse linkage digests, excluding only new parse UUID/time. Repeat
+replay, with no credentials or provider calls:
+
+```bash
+python -m iberian_shakti.ingestion.phase2_live \
+  --replay-only --archive-root /tmp/iberian-shakti-phase2-stage8-live-UNIQUE-RUN
+```
+
+Never repeat `--live` to test a parser correction. Preserve the original archive
+and parse events, add a synthetic regression, and replay those same bytes.
+This command provides controlled compatibility evidence, not production clearance
+or historical forecast-vintage reconstruction. Stage 9 remains separately authorized.
+
+### Completed ESIOS 544 boundary continuation
+
+The separately authorized one-request continuation used `--esios-boundary-only`
+with `--live` and a new external archive. That authorization is consumed; do not
+repeat it. This selection fixes the logical window to
+`[2026-10-24T00:00:00Z, 2026-10-25T00:00:00Z)` and loads only `ESIOS_API_TOKEN`.
+Its stricter limits are one logical request, three total attempts, 6 MiB total
+body/inbound bytes and 120 seconds, retaining the production 2 MiB response cap,
+timeouts, bounded retry/backoff, pacing and credential guards. No other product
+is called. The original seven-product command/selection remains unchanged.
+
+For accepted bounded ESIOS ingestion, explicitly construct
+`request_for(window, bounded=True)` from `ingestion.esios.identity` and use
+`BoundedEsiosAdapter` from `ingestion.esios.adapter` in the shared ingestion chain.
+Profile/parser **0.2.0** uses report `indicator544.v0.2.0`. Logical UTC boundaries
+must be on the native five-minute grid; start is sent unchanged and provider end
+is the logical end minus 300 UTC seconds. Ambiguous Madrid wire boundaries fail
+locally rather than guessing a fold. All returned UTC/local pairs are validated;
+any value before start or at/after end atomically fails. No clipping or widened
+window is permitted. Gaps remain visible, without filling or invented coverage.
+
+The real corrected request returned exactly 288 samples through 23:55 UTC and
+replayed successfully under network/client/retriever/credential denials. The
+original request's 301 samples through the later Madrid 02:00 fold still fail
+under original profile 0.1.0; its bytes and failed events remain unchanged.
+Legacy `EsiosAdapter`, `EsiosParser` and `request_for(window)` preserve that old
+contract, including its inclusive end allowance, for historical reproduction.
+The documentation does not explicitly specify provider endpoint/fold policy;
+the last-native-sample convention is empirically validated for this window.
+See [ADR 0008](../adr/0008-esios-bounded-five-minute-request.md) and the
+[Stage 8 continuation report](../codex/reports/phase_2_stage_8_controlled_live_validation_report.md#24-targeted-esios-544-semantics-resolution-continuation).
+
+Replay the corrected archive without credentials, `.env` loading or network:
+
+```bash
+python -m iberian_shakti.ingestion.phase2_live \
+  --replay-only \
+  --archive-root /tmp/iberian-shakti-phase2-stage8-esios-boundary-live-20261103
+```
+
+The archive manifest selects the versioned local parser. Replay appends a new
+parse event and compares all business content/query/raw/retrieval linkage.
+The original seven-provider manifest is separate and unchanged. Focused offline
+regressions include `tests/integration/test_esios_boundary_semantics.py`; no
+pytest, pre-commit or CI command performs a provider request.
+
 ## Bounds and supported content
 
 Default policy is three total attempts, with 1 then 2 seconds backoff (4-second
