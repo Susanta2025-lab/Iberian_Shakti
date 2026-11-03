@@ -17,7 +17,8 @@ serving-data platform.
 - Phase 0 — CLOSED/PASS
 - Phase 1 — CLOSED/PASS
 - Phase 2 — in progress (Stage 2 REN provisional profile; Stage 3 ESIOS and
-  Stage 4 ENTSO-E implemented offline)
+  Stage 4 ENTSO-E implemented offline; Stage 5 ERA5 and explicit ICON-EU
+  weather forecasts implemented offline)
 
 The [Phase 1 final acceptance report](docs/codex/reports/phase_1_stage_7_final_acceptance.md)
 traces all 22 original acceptance criteria to implementation and verification.
@@ -29,6 +30,9 @@ The [ESIOS Stage 3 report](docs/codex/reports/phase_2_stage_3_esios_report.md)
 records offline integration and the remaining controlled live checks.
 The [ENTSO-E Stage 4 report](docs/codex/reports/phase_2_stage_4_entsoe_report.md)
 records strict XML ingestion and offline acceptance for the three selected products.
+The [Open-Meteo Stage 5 report](docs/codex/reports/phase_2_stage_5_open_meteo_report.md)
+records historical ERA5 and ICON-EU forecast ingestion, preserving the initial
+model-selection gap and its operator-approved resolution.
 
 Present today:
 
@@ -61,6 +65,13 @@ Present today:
   wind forecasts (A69/A01), strict bounded Generation/Load v3 and acknowledgement
   v7 XML, A01/A03 curves, immutable native identity and offline replay. Absent
   technologies remain absent; live compatibility has not been validated.
+- Open-Meteo Historical Weather API with explicit ERA5, three hourly variables
+  at six versioned PT/ES sites, strict complete UTC-day parsing and offline replay.
+  Requested site coordinates and returned grid/elevation stay distinct;
+  temperature/wind are instant samples, shortwave radiation a preceding-hour mean.
+  Forecast API ingestion pins DWD ICON-EU (`models=icon_eu`) with a separate
+  profile/parser, strict next-UTC-day coverage and immutable acquisition snapshots.
+  ECMWF IFS HRES remains a documented fallback only; no automatic fallback.
 - 968 Phase 1 regression cases retained alongside Stage 1 tests; default pytest
   denies network access, including DNS, outbound socket operations and real HTTPX transports
 - Directory skeletons for `apps/`, `snowflake/`, `dbt/`, `infra/terraform/`,
@@ -68,7 +79,7 @@ Present today:
 
 REN's authoritative MW statistic, label definition and autumn fold contract
 remain unresolved refinements, documented in its provisional profile.
-Open-Meteo is pending; MIBGAS is deferred. Snowflake,
+MIBGAS is deferred. Snowflake,
 dbt, feature engineering, ML training, model registry, batch forecasts, FastAPI,
 dashboard, production scheduler and infrastructure deployment. These are not
 implemented. Phase 1 operates locally; it is not a deployed production service.

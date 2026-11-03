@@ -6,10 +6,15 @@ from datetime import date, timedelta
 from enum import StrEnum
 from typing import Annotated, Literal, Self
 
-from pydantic import Field, model_validator
+from pydantic import Field, SerializerFunctionWrapHandler, model_serializer, model_validator
 
 from iberian_shakti.contracts._base import FrozenContract, Identifier, UtcDatetime
-from iberian_shakti.contracts.geography import NativeIdentifier, SystemGeography, WeatherSite
+from iberian_shakti.contracts.geography import (
+    NativeIdentifier,
+    ProfileVersion,
+    SystemGeography,
+    WeatherSite,
+)
 
 
 class QueryWindow(FrozenContract):
@@ -38,11 +43,27 @@ class SystemQuery(FrozenContract):
         return self
 
 
+class WeatherOutputSelection(FrozenContract):
+    profile_version: ProfileVersion
+    temperature_unit: Literal["celsius"] = "celsius"
+    wind_speed_unit: Literal["ms"] = "ms"
+    timezone: Literal["GMT"] = "GMT"
+    timeformat: Literal["unixtime"] = "unixtime"
+
+
 class WeatherQuery(FrozenContract):
     kind: Literal["weather"] = "weather"
     site: WeatherSite
     model_id: Identifier
     variables: Annotated[tuple[Identifier, ...], Field(min_length=1, max_length=16)]
+    output: WeatherOutputSelection | None = None
+
+    @model_serializer(mode="wrap")
+    def preserve_legacy_shape(self, handler: SerializerFunctionWrapHandler) -> dict[str, object]:
+        data: dict[str, object] = handler(self)
+        if self.output is None:
+            data.pop("output", None)
+        return data
 
     @model_validator(mode="after")
     def canonical_variables(self) -> Self:

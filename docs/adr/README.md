@@ -84,6 +84,7 @@ Links to related ADRs, architecture docs, or implementation work.
 | [0004: Private authentication and semantic provider outcomes](0004-private-authentication-and-semantic-outcomes.md) | Accepted |
 | [0005: REN production profile and unresolved time gate](0005-ren-source-profile-and-time-gate.md) | Gate superseded by 0006 for profile 0.2.0; retained for 0.1.0 history |
 | [0006: REN provisional source-period power semantics](0006-ren-provisional-period-semantics.md) | Accepted |
+| [0007: Explicit weather output query selection](0007-explicit-weather-output-query-selection.md) | Accepted |
 
 Founding constraints (MIBEL scope, Snowflake as
 the planned data platform, batch inference with FastAPI serving precomputed

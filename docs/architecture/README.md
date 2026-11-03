@@ -19,7 +19,8 @@ implements shared multi-source contracts/request security. Stage 2 implements
 REN acquisition/chart validation and provisional empirical source-period UTC
 normalization under profile 0.2.0. Stage 3 implements ESIOS indicator 544 offline
 under profile 0.1.0. Stage 4 implements the three selected ENTSO-E products
-offline under profile 0.1.0. Open-Meteo remains pending. Phase 1
+offline under profile 0.1.0. Stage 5 implements Open-Meteo ERA5 and DWD ICON-EU
+forecasts offline with independent profiles/parsers at 0.1.0. Phase 1
 implements local OMIE ingestion, immutable archival, provenance and offline
 replay, verified by the
 [final acceptance report](../codex/reports/phase_1_stage_7_final_acceptance.md).
@@ -218,7 +219,21 @@ convenience.
 OMIE is implemented. REN acquisition/validation and provisional empirical
 normalization are implemented; authoritative label/statistic/fold definitions
 remain unresolved refinements. ESIOS indicator 544 and the selected ENTSO-E
-products are implemented offline; `weather` remains a stub and Open-Meteo is pending.
+products are implemented offline. `weather` implements Open-Meteo ERA5 hourly
+reanalysis and explicit DWD ICON-EU hourly forecasts at six versioned fixed sites.
+It reuses the shared weather contracts,
+anonymous fixed-origin HTTP policy, immutable archive and replay. A request covers
+one complete UTC day/site; strict arrays preserve instant temperature/10 m wind
+and preceding-hour mean shortwave radiation, requested coordinates and returned
+grid/elevation. Forecast queries pin `icon_eu` and separate product/parser identity,
+including explicit unit/UTC output selections under [ADR 0007](../adr/0007-explicit-weather-output-query-selection.md).
+ERA5 query serialization/hashes remain unchanged. Only the next UTC day relative
+to acquisition is supported; replay validates the original completion time.
+No run time or historical cutoff is inferred. Main-cycle hourly support through
+78 h is product context, not a measured API/run guarantee. Returned grid geometry
+may change after the announced 30 November 2026 transition. No interpolation,
+model mixing, `best_match` or automatic IFS fallback is implemented.
+See the [Stage 5 report](../codex/reports/phase_2_stage_5_open_meteo_report.md).
 MIBGAS remains deferred. Phase 2 is in progress.
 
 Environment configuration (see `.env.example`; do not add secrets to the

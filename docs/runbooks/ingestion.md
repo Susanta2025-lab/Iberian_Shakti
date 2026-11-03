@@ -3,9 +3,10 @@
 Applies to the implemented Phase 1 local workflow. Phase 1 is CLOSED/PASS;
 Phase 2 is in progress; REN acquisition and provisional empirical source-period
 UTC normalization, ESIOS indicator 544 and selected ENTSO-E Stage 4 products
-are implemented offline. Open-Meteo remains pending.
+are implemented offline. Stage 5 Open-Meteo ERA5 and explicitly selected
+DWD ICON-EU weather forecast ingestion are implemented offline.
 There is no scheduler or deployed production service.
-Last verified offline: 2026-11-03 (ENTSO-E Stage 4 and existing regressions).
+Last verified offline: 2026-11-03 (Open-Meteo Stage 5 and existing regressions).
 Live evidence is the historical
 [Stage 6 report](../codex/reports/phase_1_stage_6_live_validation.md);
 Stage 7 made no provider request.
@@ -432,4 +433,91 @@ Focused offline validation:
 
 ```bash
 python -m pytest tests/unit/ingestion/entsoe tests/integration/test_entsoe_flow.py
+```
+
+## Open-Meteo Stage 5 offline integration
+
+`ingestion/weather/` implements the Historical Weather API at
+`https://archive-api.open-meteo.com/v1/archive`, with `models=era5` explicitly.
+Profile/parser **0.1.0** accepts exactly one versioned site and one complete UTC
+day per request, using `historical_request_for(window, site_id)` and
+`OpenMeteoAdapter.resolve(request)`. The six site identities/coordinates are
+listed in the [Stage 5 report](../codex/reports/phase_2_stage_5_open_meteo_report.md).
+No geocoding, batching, automatic date iteration or live command is provided.
+
+Queries select only `temperature_2m`, `wind_speed_10m`, `shortwave_radiation`,
+`timezone=GMT`, `timeformat=unixtime`, `temperature_unit=celsius` and
+`wind_speed_unit=ms`. Both date parameters name the requested UTC day. All 24
+ordered hourly timestamps and all three arrays/units are required. Temperature
+and wind retain instantaneous support at 2 m and 10 m; shortwave is a mean over
+`[t−1h,t)`, including the interval before midnight. Source values are neither
+filled nor resampled. Unexpected units, nulls or existing shared scientific-bound
+violations fail the complete parse. Requested site coordinates remain on `site`;
+returned coordinates and mandatory finite elevation remain on `returned_grid`.
+
+The public historical path is anonymous and reads no API key. The shared
+retriever retains finite deadlines, three attempts, default 1/2-second backoff,
+supported bounded Retry-After, fixed origin, TLS and zero redirects. Any future
+separately authorized sequence must be paced at no more than one request/second;
+there is no provider concurrency/polling loop. This stage authorizes no live call.
+
+Complete safe 200 bodies archive before parsing. Bounded `error=true` / string
+`reason` documents yield `provider_rejected`, zero records and no reason prose in
+logs. Unrecognized shapes fail schema validation; no no-data variant is guessed.
+Non-200 bodies use unchanged shared HTTP handling (400 is a terminal HTTP
+failure); those bodies are not archived or logged. Semantic failures never retry.
+
+Offline replay uses shared `replay(archive, reference, retrieval_uuid)`, then
+`OpenMeteoAdapter().parser.parse(...)` with a new parse UUID/UTC time and
+`archive.persist_parse(...)`. It needs no network or credentials. Original bytes,
+retrieval events and parse histories remain immutable; corrupt linkage/hash fails
+without refetching.
+
+Forecasts use `forecast_request_for(window, site_id)` and
+`OpenMeteoForecastAdapter.resolve(request)`, followed by that adapter's retriever
+and parser in the same shared runner. Endpoint:
+`https://api.open-meteo.com/v1/forecast`, always **models=icon_eu** (DWD ICON-EU,
+European deterministic domain, approximately 7 km). Report
+`forecast.icon_eu.v0.1.0`, parser `open_meteo.icon_eu.hourly / 0.1.0`, independent
+profile 0.1.0. Historical parser remains `open_meteo.era5.hourly / 0.1.0`.
+Forecast requests explicitly preserve profile, unit, timezone and time-format
+choices in canonical query/provenance. Neither adapter accepts arbitrary models.
+
+Forecast acquisition supports only the next complete UTC weather day relative
+to the injected acquisition clock, checked before client construction and again
+against retrieval completion at parsing. A midnight-crossing acquisition may
+therefore fail closed. One explicit day, 24 ordered hours and 72 records are
+required; no default multi-day horizon, missing-value repair or interpolation.
+The intended use is approximately 12–48 h day-ahead; main cycles are documented
+hourly through 78 h. Side-cycle availability and actual run contributions remain
+unverified; no run initialization or actual lead time is inferred from acquisition.
+A UTC weather day is not a complete local MIBEL delivery-day claim.
+
+Forecasts retain `kind=forecast`, ERA5 `kind=reanalysis`; both retain the same
+variable units/support above. Reacquisition of identical bytes shares content
+with separate retrieval events; changed forecasts retain both payload versions.
+Unknown forecast editions remain distinct through original acquisition UUIDs.
+For forecast replay use `OpenMeteoForecastAdapter().parser.parse(...)` after
+shared `replay()`. Replay uses original acquisition time, without constructing a
+client/retriever, loading credentials or adding a retrieval event.
+
+The current Forecast API establishes availability at acquisition only. It does
+not establish what was known before a historical MIBEL cutoff. Historical
+Forecast, Previous Runs and Single Runs ingestion remain out of scope. Source
+issue/run/publication/update times stay null without authoritative metadata.
+Retain all raw responses and returned grid/elevation; the announced ICON grid
+transition after 30 November 2026 does not change the configured site or selector.
+**ECMWF IFS HRES / models=ecmwf_ifs is documentation only**: no automatic fallback,
+per-site switching, model mixing or filling missing ICON-EU values. A future IFS
+integration requires separate authorization, identity/profile and archive history.
+
+Actual provider shape, units, coverage, grid/elevation, shortwave behavior,
+main/side cycles, cutoff availability, errors, limits, compression, grid transition,
+terms/attribution and historical run completeness/publication timing remain
+reserved for separately authorized controlled live validation.
+
+Focused validation remains offline under the unchanged pytest network guard:
+
+```bash
+python -m pytest tests/unit/ingestion/weather tests/integration/test_open_meteo_flow.py
 ```

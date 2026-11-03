@@ -1,0 +1,35 @@
+{
+  "synthetic_era5.json": {
+    "bytes": 1733,
+    "sha256": "199bbc5cf2b705c6c8e181002a17ab193920beccdb534ca2aeaca2ff0ab07377",
+    "evidence": "synthetic",
+    "profile": "0.1.0",
+    "record_count": 72
+  },
+  "synthetic_icon_eu.json": {
+    "bytes": 1755,
+    "sha256": "352155e986688a8cad7c1517c22516a982b3a0399a2c44ac6b0590a6aabde1b1",
+    "evidence": "synthetic",
+    "profile": "0.1.0",
+    "record_count": 72,
+    "product": "forecast.icon_eu.v0.1.0",
+    "model": "icon_eu",
+    "parser": "open_meteo.icon_eu.hourly",
+    "parser_version": "0.1.0",
+    "site": "PT.lisbon",
+    "requested_latitude": 38.72,
+    "requested_longitude": -9.14,
+    "start_date": "2026-10-25",
+    "end_date": "2026-10-25",
+    "acquired_at": "2026-10-24T12:00:00Z",
+    "temperature_unit": "celsius",
+    "wind_speed_unit": "ms",
+    "timezone": "GMT",
+    "timeformat": "unixtime",
+    "hourly": [
+      "temperature_2m",
+      "wind_speed_10m",
+      "shortwave_radiation"
+    ]
+  }
+}
