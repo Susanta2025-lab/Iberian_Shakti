@@ -16,23 +16,23 @@ serving-data platform.
 
 - Phase 0 — CLOSED/PASS
 - Phase 1 — CLOSED/PASS
-- Phase 2 — in progress (Stage 2 REN provisional profile; Stage 3 ESIOS and
-  Stage 4 ENTSO-E implemented offline; Stage 5 ERA5 and explicit ICON-EU
-  weather forecasts implemented offline)
+- Phase 2 — Multi-Source Ingestion Expansion — CLOSED / PASS
+  (2026-11-03; 42 satisfied, 2 satisfied with documented limitation)
 
 The [Phase 1 final acceptance report](docs/codex/reports/phase_1_stage_7_final_acceptance.md)
 traces all 22 original acceptance criteria to implementation and verification.
-Phase 2 uses the single [readiness assessment](docs/codex/reports/phase_2_readiness_assessment.md)
-and [Stage 1 report](docs/codex/reports/phase_2_stage_1_report.md).
-The [REN Stage 2 report](docs/codex/reports/phase_2_stage_2_ren_report.md) records
-the original time-semantics gate and the revised Stage 2 acceptance decision.
-The [ESIOS Stage 3 report](docs/codex/reports/phase_2_stage_3_esios_report.md)
-records offline integration and the remaining controlled live checks.
-The [ENTSO-E Stage 4 report](docs/codex/reports/phase_2_stage_4_entsoe_report.md)
-records strict XML ingestion and offline acceptance for the three selected products.
-The [Open-Meteo Stage 5 report](docs/codex/reports/phase_2_stage_5_open_meteo_report.md)
-records historical ERA5 and ICON-EU forecast ingestion, preserving the initial
-model-selection gap and its operator-approved resolution.
+The [Phase 2 final acceptance report](docs/codex/reports/phase_2_final_acceptance_report.md)
+reconciles all 44 criteria from the sole
+[readiness assessment](docs/codex/reports/phase_2_readiness_assessment.md).
+Provider ingestion, deterministic offline validation and immutable replay are
+implemented. The [Stage 8 report](docs/codex/reports/phase_2_stage_8_controlled_live_validation_report.md)
+accepts all seven required live products and their network-denied replay.
+The operator explicitly accepts REN profile/parser 0.2.0 for final Phase 2
+under [ADR 0009](docs/adr/0009-ren-provisional-semantics-phase2-acceptance.md).
+It remains `provisional_empirical`: provider-authoritative timestamp edges and
+autumn value-to-fold ownership are externally unconfirmed. This acceptance-policy
+decision supplies no new provider evidence. ESIOS retains its native-unit-field
+limitation.
 
 Present today:
 
@@ -59,18 +59,25 @@ Present today:
 - ESIOS indicator 544 (`Demanda prevista Peninsular`) bounded API snapshots,
   private `ESIOS_API_TOKEN` / `x-api-key` authentication, strict JSON validation,
   five-minute UTC forecast samples in MW for the Spanish peninsular system,
-  immutable revisions and offline replay. Historical snapshots do not establish
-  a guaranteed complete D-1 forecast vintage; live compatibility remains unverified.
+  immutable snapshots and offline replay. Accepted bounded profile/parser 0.2.0
+  uses the last desired native timestamp as the provider end filter and rejects
+  values outside the logical half-open UTC window. Legacy 0.1.0 remains historical.
+  Neither product establishes a complete historical D-1 forecast vintage or
+  universal provider DST/filtering internals.
 - ENTSO-E ES actual total load (A65/A16) and PT/ES day-ahead solar/onshore/offshore
   wind forecasts (A69/A01), strict bounded Generation/Load v3 and acknowledgement
   v7 XML, A01/A03 curves, immutable native identity and offline replay. Absent
-  technologies remain absent; live compatibility has not been validated.
+  technologies remain absent. All three product/domain paths passed controlled
+  live validation and denied replay under profile/parser 0.1.0.
 - Open-Meteo Historical Weather API with explicit ERA5, three hourly variables
   at six versioned PT/ES sites, strict complete UTC-day parsing and offline replay.
   Requested site coordinates and returned grid/elevation stay distinct;
   temperature/wind are instant samples, shortwave radiation a preceding-hour mean.
   Forecast API ingestion pins DWD ICON-EU (`models=icon_eu`) with a separate
   profile/parser, strict next-UTC-day coverage and immutable acquisition snapshots.
+  Both products passed controlled live validation and denied replay at Lisbon;
+  all six sites are covered offline. Current ICON-EU snapshots are not historical
+  cutoff-safe forecast vintages, and ERA5 reanalysis is not historical forecast.
   ECMWF IFS HRES remains a documented fallback only; no automatic fallback.
 - 968 Phase 1 regression cases retained alongside Stage 1 tests; default pytest
   denies network access, including DNS, outbound socket operations and real HTTPX transports
@@ -78,11 +85,16 @@ Present today:
   `docker/`, and `.github/workflows/`
 
 REN's authoritative MW statistic, label definition and autumn fold contract
-remain unresolved refinements, documented in its provisional profile.
-MIBGAS is deferred. Snowflake,
-dbt, feature engineering, ML training, model registry, batch forecasts, FastAPI,
-dashboard, production scheduler and infrastructure deployment. These are not
-implemented. Phase 1 operates locally; it is not a deployed production service.
+remain unresolved, documented in its provisional profile and accepted criterion 4
+limitation. Its 92/96/100 period handling and unsupported-layout failures are
+permanently tested. Future semantic corrections require a new explicit version;
+raw/retrieval/parse/replay history must remain immutable.
+MIBGAS is deferred. Snowflake, dbt, feature engineering, ML training, model registry,
+batch forecasts, FastAPI, dashboard, production scheduler and infrastructure
+deployment remain unimplemented. Phase 3 has not started or been authorized.
+The implemented system operates locally; it is not a deployed production service.
+Provider availability, complete history, future compatibility and commercial or
+redistribution clearance are not guaranteed; attribution/service terms still apply.
 
 Passing local tests does not guarantee successful live validation.
 A successful live observation does not guarantee permanent provider compatibility.
@@ -97,7 +109,7 @@ instruction. Never commit secrets.
 - [Architecture](docs/architecture/README.md) — data flow, package boundaries, ML and serving rules
 - [Architecture Decision Records](docs/adr/README.md) — material decisions before implementation
 - [Runbooks](docs/runbooks/README.md) — implemented local procedures and future catalog
-- [OMIE ingestion runbook](docs/runbooks/ingestion.md) — settings, offline validation, deliberate live smoke, recovery and replay
+- [Ingestion runbook](docs/runbooks/ingestion.md) — OMIE and Phase 2 settings, offline validation, explicit live commands, recovery and replay
 
 ## Layout
 

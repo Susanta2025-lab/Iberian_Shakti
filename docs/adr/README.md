@@ -86,6 +86,7 @@ Links to related ADRs, architecture docs, or implementation work.
 | [0006: REN provisional source-period power semantics](0006-ren-provisional-period-semantics.md) | Accepted |
 | [0007: Explicit weather output query selection](0007-explicit-weather-output-query-selection.md) | Accepted |
 | [0008: ESIOS bounded five-minute request semantics](0008-esios-bounded-five-minute-request.md) | Accepted for explicit profile 0.2.0; 0.1.0 history preserved |
+| [0009: REN provisional semantics for final Phase 2 acceptance](0009-ren-provisional-semantics-phase2-acceptance.md) | Accepted project policy for criterion 4; 0.2.0 remains provisional_empirical |
 
 Founding constraints (MIBEL scope, Snowflake as
 the planned data platform, batch inference with FastAPI serving precomputed

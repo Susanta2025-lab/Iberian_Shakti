@@ -11,11 +11,16 @@ system as designed.
 ## Status
 
 There is **no deployed production system** yet. Phase 1 local OMIE ingestion,
-archive and replay are implemented and CLOSED/PASS. Phase 2 is in progress
-(REN provisional empirical MW normalization, ESIOS indicator 544 and the
-selected ENTSO-E Stage 4 products and Stage 5 Open-Meteo ERA5/ICON-EU implemented
-offline, with explicit independent product identities).
-The [OMIE ingestion runbook](ingestion.md) covers the implemented operator path;
+archive and replay are implemented and CLOSED/PASS. Phase 2 is
+**CLOSED / PASS** at final acceptance (2026-11-03): REN 0.2.0,
+bounded ESIOS 544 0.2.0, ENTSO-E ES load/PT+ES renewables 0.1.0 and ERA5/ICON-EU
+0.1.0 are implemented and controlled-live/replay validated. REN criterion 4
+is accepted with documented limitation by explicit operator policy in
+[ADR 0009](../adr/0009-ren-provisional-semantics-phase2-acceptance.md), retaining
+provisional_empirical semantics and externally unconfirmed timestamp-edge/fold
+ownership. ESIOS criterion 5 retains its native-unit-field limitation. See the
+[final acceptance report](../codex/reports/phase_2_final_acceptance_report.md).
+The [ingestion runbook](ingestion.md) covers the implemented operator paths;
 the catalog below lists future procedures, not existing services.
 
 Do not activate, provision, or modify paid cloud resources or Snowflake without

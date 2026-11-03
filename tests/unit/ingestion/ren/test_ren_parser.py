@@ -77,7 +77,12 @@ def test_physical_days_normalize_without_claiming_averaging(name, count, hour_co
     for i, record in enumerate(consumption):
         assert isinstance(record, SystemMeasurement)
         assert isinstance(record.timing, SupportInterval)
+        assert (
+            record.timing.start_utc.utcoffset() == record.timing.end_utc.utcoffset() == timedelta(0)
+        )
         assert record.timing.end_utc - record.timing.start_utc == timedelta(minutes=15)
+        if i:
+            assert consumption[i - 1].timing.end_utc == record.timing.start_utc
         assert (
             record.timing.start_utc.astimezone(zone).strftime("%H:%M") == chart.xAxis.categories[i]
         )
@@ -88,7 +93,12 @@ def test_physical_days_normalize_without_claiming_averaging(name, count, hour_co
         assert record.parse_event_id == result.provenance.parse_event_id
         assert record.retrieval_event_id == result.provenance.retrieval_event_id
         assert SystemMeasurement.model_validate_json(record.model_dump_json()) == record
+    next_day = day + timedelta(days=1)
+    assert consumption[-1].timing.end_utc == datetime(
+        next_day.year, next_day.month, next_day.day, tzinfo=zone
+    ).astimezone(UTC)
     if name == "autumn":
+        # Synthetic evidence of the accepted policy, not a provider fold contract.
         assert [r.timing.start_utc.astimezone(zone).fold for r in consumption[4:12]] == [0] * 4 + [
             1
         ] * 4
@@ -101,6 +111,42 @@ def test_physical_days_normalize_without_claiming_averaging(name, count, hour_co
             if record.native.series_id in {"Import", "Export"}
             else profile.AREA
         )
+
+
+def test_autumn_chart_labels_cannot_establish_physical_value_to_fold_ownership():
+    """Exchanging indistinguishable label blocks cannot be detected from labels.
+
+    Both synthetic responses obey the chart grammar and provisional profile.
+    This demonstrates missing evidence, not a claimed alternative REN convention.
+    """
+    body = (ROOT / "synthetic_autumn.json").read_bytes()
+    original = json.loads(body)
+    # The fixture is deliberately constant. Give the two blocks distinguishable
+    # invented values in memory so their exchange is observable without real data.
+    for series in original["series"]:
+        if series["name"] == "Consumption":
+            series["data"][4:12] = [10, 11, 12, 13, 20, 21, 22, 23]
+    body = json.dumps(original).encode()
+    exchanged = json.loads(body)
+    labels = original["xAxis"]["categories"]
+    assert labels[4:8] == labels[8:12] == ["01:00", "01:15", "01:30", "01:45"]
+    for series in exchanged["series"]:
+        series["data"][4:8], series["data"][8:12] = series["data"][8:12], series["data"][4:8]
+    assert exchanged["xAxis"] == original["xAxis"]
+    day = date.fromisoformat(INVENTORY["synthetic_autumn.json"]["source_day"])
+    first = parse(body, day)
+    second = parse(json.dumps(exchanged).encode(), day)
+    assert first.provenance.outcome is second.provenance.outcome is ParseOutcome.SUCCESS
+    before = [r for r in first.records if r.native.series_id == "Consumption"]
+    after = [r for r in second.records if r.native.series_id == "Consumption"]
+    assert [r.timing for r in before] == [r.timing for r in after]
+    assert [r.value for r in before[4:8]] != [r.value for r in before[8:12]]
+    assert [r.value for r in after[4:8]] == [r.value for r in before[8:12]]
+    assert [r.value for r in after[8:12]] == [r.value for r in before[4:8]]
+    assert profile.TIME_SEMANTICS_STATUS == "provisional_empirical"
+    assert all(
+        r.statistic is Statistic.PROVIDER_PERIOD_VALUE for r in first.records + second.records
+    )
 
 
 def test_checksum_inventory_and_synthetic_rights_policy():

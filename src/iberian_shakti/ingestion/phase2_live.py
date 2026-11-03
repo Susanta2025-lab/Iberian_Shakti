@@ -151,6 +151,7 @@ type StopCategory = Literal[
     "unsafe_redirect",
     "unsafe_transport",
     "sensitive_response",
+    "entsoe_rate_limited",
     "archive_integrity_failure",
     "attempt_accounting_failure",
     "internal_safety_failure",
@@ -398,6 +399,12 @@ def execute(
             _record(entry, result, archive)
             if entry.error_code is ErrorCode.SENSITIVE_RESPONSE:
                 raise RunStop("sensitive_response")
+            if (
+                selection.request.source_id == "entsoe"
+                and entry.error_code is ErrorCode.RATE_LIMITED
+            ):
+                # A token ban affects every later selection in this invocation.
+                raise RunStop("entsoe_rate_limited")
         except RunStop as error:
             manifest.stop_category = TypeAdapter(StopCategory).validate_python(str(error))
         except ExecutionError as error:

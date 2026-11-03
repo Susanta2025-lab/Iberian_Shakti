@@ -329,14 +329,37 @@ def test_error_bodies_and_retries_count_and_auth_failure_does_not_retry(tmp_path
     assert len(list(root.rglob("payload.bin"))) == 6
 
 
-def test_entsoe_429_is_terminal_and_other_planned_domains_continue(tmp_path, fake_clock):
+@pytest.mark.parametrize("product,index", [("entsoe_load", 2), ("entsoe_pt", 3), ("entsoe_es", 4)])
+def test_entsoe_429_ends_invocation_and_preserves_prior_evidence(
+    tmp_path, fake_clock, product, index
+):
     root = tmp_path / "live"
-    assert run(root, transport_factory=factory_for(statuses={"entsoe_load": [429]})) == 3
+    calls = []
+    assert run(root, transport_factory=factory_for(statuses={product: [429]}, calls=calls)) == 3
     manifest = load(root)
-    assert manifest.entries[2].attempts == 1
-    assert manifest.entries[2].error_code.value == "rate_limited"
-    assert manifest.entries[3].outcome == manifest.entries[4].outcome == "success"
-    assert manifest.accounting["http_attempts"] == 7
+    assert manifest.entries[index].attempts == 1
+    assert manifest.entries[index].error_code.value == "rate_limited"
+    assert manifest.stop_category == "entsoe_rate_limited"
+    assert (
+        manifest.accounting["logical_requests"] == manifest.accounting["http_attempts"] == index + 1
+    )
+    assert [call[0] for call in calls] == [s.key for s in live.plan(AT)[: index + 1]]
+    assert all(e.outcome == "not_executed" for e in manifest.entries[index + 1 :])
+    assert manifest.logical_successful == index
+    assert manifest.retries_by_provider["entsoe"] == 0
+    assert manifest.accounting["attempted_body_bytes"] == manifest.archived_bytes + len(
+        b"unchecked-error-prose"
+    )
+    before = {path: path.read_bytes() for path in root.rglob("*") if path.is_file()}
+    assert live.run(args(root, enabled=False, replay=True), environment={}) == 0
+    replayed = load(root)
+    assert all(e.replay == "equal" for e in replayed.entries[:index])
+    assert all(
+        path.read_bytes() == content
+        for path, content in before.items()
+        if path.name != live.MANIFEST
+    )
+    assert len(calls) == index + 1
 
 
 @pytest.mark.parametrize("status", [301, 302, 307, 308])

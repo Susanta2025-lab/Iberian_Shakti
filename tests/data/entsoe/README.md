@@ -12,5 +12,7 @@ The acknowledgement exercises documented 999 + exact no-matching-data context.
 
 `manifest.json` records original byte counts, SHA-256, synthetic evidence,
 profile and expected record counts. Hostile, revised and invalid variants are
-constructed in memory. Live compatibility and redistribution rights for real
-responses have not been established.
+constructed in memory. Stage 8 separately established live compatibility/replay
+for all three required product/domain paths under profile 0.1.0. These synthetic
+fixtures are not that live evidence; rights to redistribute real responses remain
+unestablished. Fixture bytes and manifests remain unchanged.

@@ -14,16 +14,20 @@ Operational procedures live in [`docs/runbooks/`](../runbooks/README.md).
 
 ## Status
 
-Phase 0 and Phase 1 are **CLOSED/PASS**; Phase 2 is in progress. Stage 1
-implements shared multi-source contracts/request security. Stage 2 implements
-REN acquisition/chart validation and provisional empirical source-period UTC
-normalization under profile 0.2.0. Stage 3 implements ESIOS indicator 544 offline
-under profile 0.1.0. Stage 4 implements the three selected ENTSO-E products
-offline under profile 0.1.0. Stage 5 implements Open-Meteo ERA5 and DWD ICON-EU
-forecasts offline with independent profiles/parsers at 0.1.0. Phase 1
-implements local OMIE ingestion, immutable archival, provenance and offline
-replay, verified by the
-[final acceptance report](../codex/reports/phase_1_stage_7_final_acceptance.md).
+Phase 0 and Phase 1 are **CLOSED/PASS**. Phase 2 final acceptance is
+**CLOSED / PASS** as of 2026-11-03: all seven required products passed
+controlled live validation and denied replay. The final checklist has 42
+SATISFIED and 2 SATISFIED WITH DOCUMENTED LIMITATION. See the
+[44-criterion final acceptance report](../codex/reports/phase_2_final_acceptance_report.md).
+Under [ADR 0009](../adr/0009-ren-provisional-semantics-phase2-acceptance.md),
+the operator accepts REN's existing provisional semantics for Phase 2 closure;
+provider-authoritative timestamp edges and autumn value-to-fold ownership remain
+unconfirmed. This is acceptance policy, not new evidence or a semantic upgrade.
+Implemented profiles are REN 0.2.0 (provisional empirical), bounded ESIOS 544
+0.2.0, three ENTSO-E product/domain paths 0.1.0, ERA5 0.1.0 and ICON-EU 0.1.0.
+Legacy ESIOS 0.1.0 remains available for historical reproduction. Phase 1 OMIE
+compatibility and its [acceptance history](../codex/reports/phase_1_stage_7_final_acceptance.md)
+remain intact.
 Snowflake, transformations, features, ML, forecasting, serving and deployment
 remain planned. There is no deployed production service.
 
@@ -112,6 +116,25 @@ establish compatibility only for those recorded interactions.
 
 ## Phase 2 shared foundation
 
+```text
+REN / ESIOS / ENTSO-E / Open-Meteo
+  → typed product/window/geography/model query
+  → fixed-origin bounded retrieval (private selected credentials where required)
+  → immutable original-byte raw archive
+  → retrieval provenance
+  → strict provider parser
+  → normalized typed system/weather record
+  → parse provenance
+  → checksum-verified network-free replay from original acquisition
+```
+
+The operator-only `ingestion.phase2_live` command defaults offline and requires
+explicit `--live` for acquisition; `--replay-only` needs no credentials.
+Its fixed seven-product plan and separate bounded ESIOS selection have finite
+whole-run request/attempt/body/inbound-byte/time caps and sequential pacing.
+ENTSO-E 429 stops the entire invocation. It is absent from ordinary pytest,
+pre-commit and automatic CI. It adds no scheduler or deployment.
+
 [ADRs 0003/0004](../adr/README.md) record API snapshot/query identity,
 system/weather measurements, explicit source timing/geography/units, private
 fixed-origin authentication and semantic HTTP-200 outcomes. The closed record
@@ -144,9 +167,16 @@ values become forecast/load/MW `SystemMeasurement` instant samples using explici
 provider UTC timestamps. Peninsular system geography preserves returned native
 IDs; no numeric catalogue ID is guessed. Indicator `values_updated_at` remains
 source update context, never a forecast issue time. Unknown editions retain
-acquisition snapshot identities. Profile/parser 0.1.0 has synthetic offline
-evidence; authenticated metadata and real end-boundary behavior await controlled
-live validation. See the [Stage 3 report](../codex/reports/phase_2_stage_3_esios_report.md).
+acquisition snapshot identities. Historical profile/parser 0.1.0 permits an
+inclusive end sample and preserves the original failed live overrun.
+[ADR 0008](../adr/0008-esios-bounded-five-minute-request.md) accepts explicit
+0.2.0: logical windows are half-open, the provider end filter is end minus
+300 elapsed UTC seconds, and ambiguous Madrid wire boundaries fail locally.
+The corrected live response had 288 five-minute samples and equal denied replay.
+Authenticated metadata confirms the product/magnitude/cadence/geography; MW is
+documented product policy, with no native unit field observed. This establishes
+bounded compatibility, not universal DST/filtering internals. Stage 3 history is
+reconciled in the [Stage 8 continuation](../codex/reports/phase_2_stage_8_controlled_live_validation_report.md#24-targeted-esios-544-semantics-resolution-continuation).
 
 Stage 4's `ingestion/entsoe/` implements only ES A65/A16 actual load and PT/ES
 A69/A01 wind/solar forecasts. The existing query/private-auth/retriever/archive/
@@ -219,7 +249,7 @@ convenience.
 OMIE is implemented. REN acquisition/validation and provisional empirical
 normalization are implemented; authoritative label/statistic/fold definitions
 remain unresolved refinements. ESIOS indicator 544 and the selected ENTSO-E
-products are implemented offline. `weather` implements Open-Meteo ERA5 hourly
+products are implemented and controlled-live validated. `weather` implements Open-Meteo ERA5 hourly
 reanalysis and explicit DWD ICON-EU hourly forecasts at six versioned fixed sites.
 It reuses the shared weather contracts,
 anonymous fixed-origin HTTP policy, immutable archive and replay. A request covers
@@ -234,7 +264,18 @@ No run time or historical cutoff is inferred. Main-cycle hourly support through
 may change after the announced 30 November 2026 transition. No interpolation,
 model mixing, `best_match` or automatic IFS fallback is implemented.
 See the [Stage 5 report](../codex/reports/phase_2_stage_5_open_meteo_report.md).
-MIBGAS remains deferred. Phase 2 is in progress.
+Both weather products passed controlled live acquisition/replay at Lisbon;
+all six sites have deterministic offline coverage. Current/latest forecast
+snapshots do not reconstruct historical forecast vintages or prove availability
+before an old MIBEL cutoff. ERA5 is reanalysis, not a historical forecast.
+MIBGAS remains deferred. Phase 2 is CLOSED / PASS; Phase 3 has not started or
+been authorized. REN's 92/96/100 shapes and unsupported-layout rejection are
+deterministically tested under unchanged provisional_empirical 0.2.0. Future
+authoritative clarification that changes interpretation requires a new version,
+preserving all raw, retrieval, parse and replay history. Feature engineering must
+retain this uncertainty rather than assume provider-confirmed interval/fold semantics.
+Live compatibility provides no production SLA, complete-history
+guarantee or commercial/licensing clearance; see runbook usage boundaries.
 
 Environment configuration (see `.env.example`; do not add secrets to the
 repository):

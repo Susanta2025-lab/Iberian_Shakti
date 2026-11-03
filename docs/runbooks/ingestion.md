@@ -1,27 +1,36 @@
-# Runbook: Local OMIE ingestion and replay
+# Runbook: Local OMIE and Phase 2 ingestion and replay
 
-Applies to the implemented Phase 1 local workflow. Phase 1 is CLOSED/PASS;
-Phase 2 is in progress; REN acquisition and provisional empirical source-period
-UTC normalization, ESIOS indicator 544 and selected ENTSO-E Stage 4 products
-are implemented offline. Stage 5 Open-Meteo ERA5 and explicitly selected
-DWD ICON-EU weather forecast ingestion are implemented offline.
+Applies to the implemented local ingestion workflow. Phase 1 is CLOSED/PASS;
+Phase 2 final acceptance is **CLOSED / PASS** (2026-11-03), as detailed
+in the [final acceptance report](../codex/reports/phase_2_final_acceptance_report.md).
+REN provisional 0.2.0, bounded ESIOS 544 0.2.0, ENTSO-E ES load/PT+ES renewable
+forecasts 0.1.0 and Open-Meteo ERA5/ICON-EU 0.1.0 are implemented. All seven
+Phase 2 products have controlled live and network-denied replay evidence.
 There is no scheduler or deployed production service.
-Last verified offline: 2026-11-03 (Open-Meteo Stage 5 and existing regressions).
-Live evidence is the historical
-[Stage 6 report](../codex/reports/phase_1_stage_6_live_validation.md);
-Stage 7 made no provider request.
+Last verified offline: 2026-11-03 (Stage 9 final validation).
+Live evidence: [Phase 1 Stage 6](../codex/reports/phase_1_stage_6_live_validation.md)
+and [Phase 2 Stage 8, including §24](../codex/reports/phase_2_stage_8_controlled_live_validation_report.md).
+Stage 9 issues no provider request. Phase 3 has not started or been authorized.
 
 ## Prerequisites and settings
 
 Run from the repository root in the existing pyenv environment `iberian_shakti`
 (Python 3.12), with the declared dependencies installed and host IANA timezone
-data providing `Europe/Madrid`. OMIE uses the public anonymous `marginalpdbc`
+data providing `Europe/Madrid` and `Europe/Lisbon`, plus Expat >=2.6.0 for
+ENTSO-E's strict XML parser. OMIE uses the public anonymous `marginalpdbc`
 route and requires no ESIOS, ENTSO-E or Snowflake credentials.
 
 `load_ingestion_settings()` reads only these exported environment variables
 (or an explicitly injected mapping). It does **not** load `.env`; copying
 `.env.example` does not configure a process. Invalid settings fail validation
 before acquisition; no archive is created by settings construction.
+
+Process environment is the formal configuration mechanism. An operator may
+maintain selected assignments locally in ignored, untracked `.env`, but must
+arrange the selected variables in the execution process explicitly and safely.
+The application never sources or automatically loads that file. Do not print
+values, paste tokens into commands/reports, or export unrelated credentials.
+Ordinary tests and replay require no credentials or `.env` access.
 
 | Variable | Default | Meaning |
 | --- | --- | --- |
@@ -51,9 +60,11 @@ The guard prevents accidental Python network use; it is not an OS sandbox for
 independent subprocesses/native code.
 
 Full local quality gates are `ruff check .`, `ruff format --check .`,
-`mypy src`, `python -m pytest` and `git diff --check`. Run applicable cached
-pre-commit hooks against changed paths. Neither pytest nor pre-commit should
-run a live provider check.
+`mypy src`, `python -m pytest`, `git diff --check` and
+`pre-commit run --all-files`. Include new untracked paths in an explicit
+`pre-commit run --files ...` invocation without staging. Neither pytest nor
+pre-commit runs a live provider check. Focused Stage 6, Stage 7 security,
+Stage 8 offline and provider selections are recorded in final acceptance §12.
 
 ## Deliberate live smoke
 
@@ -111,7 +122,8 @@ A successful live observation does not guarantee permanent provider compatibilit
 
 ## Phase 2 Stage 8 controlled validation
 
-The separate operator command uses the seven fixed Stage 8 selections. It is
+The separate operator command preserves the original seven fixed Stage 8
+selections, including historical ESIOS 0.1.0. It is
 never invoked by pytest, pre-commit or CI. Without `--live` it refuses before
 credential or HTTP construction:
 
@@ -134,7 +146,8 @@ No provider/date/model discovery or automatic fallback is available. The runner
 does not issue optional ESIOS metadata requests; insufficient response metadata
 must be reported as a gap rather than a new discovery request.
 
-Whole-run limits are eight logical requests, 24 attempts, 32 MiB attempted body
+Whole-run limits are eight logical requests (at most one optional metadata slot),
+24 attempts, 32 MiB attempted body
 bytes and 900 seconds. The command executes seven logical requests only, with
 unchanged production retries and at least 1.1 seconds between attempt starts.
 Failed/retried body chunks count. A second conservative 32 MiB inbound socket-read
@@ -143,6 +156,10 @@ Socket read sizes shrink before each read. A main-thread POSIX alarm bounds DNS,
 parsing and local work as well as transport; a pre-existing timer fails preflight.
 Budget exhaustion and safety/integrity failures stop further network operations.
 Normal provider failures remain explicit and do not trigger manual retries.
+ENTSO-E 429 ends the entire invocation with `entsoe_rate_limited`, preventing
+later domain/weather requests under that run. Earlier immutable acquisitions
+remain available for a separate denied replay. This locally tested Stage 9 fix
+does not change or repeat the retained Stage 8 requests, which saw no 429.
 
 The original-byte `LocalRawArchive` and immutable retrieval/parse events are
 reused. `stage8-manifest.json` is a mutable local run index, separate from those
@@ -167,7 +184,10 @@ python -m iberian_shakti.ingestion.phase2_live \
 Never repeat `--live` to test a parser correction. Preserve the original archive
 and parse events, add a synthetic regression, and replay those same bytes.
 This command provides controlled compatibility evidence, not production clearance
-or historical forecast-vintage reconstruction. Stage 9 remains separately authorized.
+or historical forecast-vintage reconstruction. These are operating templates;
+Stage 9 authorizes no new live execution. The original seven-product command
+is retained for historical reproduction and does not replace its ESIOS selection
+with the accepted bounded profile automatically.
 
 ### Completed ESIOS 544 boundary continuation
 
@@ -213,7 +233,15 @@ The archive manifest selects the versioned local parser. Replay appends a new
 parse event and compares all business content/query/raw/retrieval linkage.
 The original seven-provider manifest is separate and unchanged. Focused offline
 regressions include `tests/integration/test_esios_boundary_semantics.py`; no
-pytest, pre-commit or CI command performs a provider request.
+pytest, pre-commit or CI command performs a provider request. A separately
+authorized targeted acquisition would use the following fixed mode; Stage 9
+does not authorize executing it:
+
+```bash
+python -m iberian_shakti.ingestion.phase2_live \
+  --live --esios-boundary-only \
+  --archive-root /tmp/iberian-shakti-esios-boundary-live-UNIQUE-RUN
+```
 
 ## Bounds and supported content
 
@@ -334,7 +362,8 @@ sidecars. `ingest_resolved` shares persistence-before-parsing with OMIE.
 ESIOS_API_TOKEN or ENTSOE_API_TOKEN. It does not load .env; anonymous sources
 need neither. Secret settings dumps/repr exclude values. `PrivateRequestPolicy`
 pins the HTTPS origin and supplies x-api-key or securityToken only privately.
-No provider adapter/authentication success is implied by these shared utilities.
+Real ESIOS and ENTSO-E authenticated success is recorded separately in Stage 8;
+the shared utilities alone are not observational evidence.
 
 A safe complete HTTP-200 body can receive a separate version-2 no-data/provider
 rejection/profile failure event after archival. Such a result is not successful
@@ -342,8 +371,8 @@ normalized data and retains its real HTTP status. An active credential echo is
 rejected before normal payload publication, without redaction or a retry. Only
 safe failure status/attempt/code metadata is returned. Authenticated nonidentity
 coding fails before publication because the narrow echo guard does not decode
-arbitrary encodings. Provider-specific commands and recovery instructions await
-those provider stages; Stage 1 adds no live invocation.
+arbitrary encodings. Phase 2 operator commands are documented above; no ordinary
+test loads credentials or enables live access.
 
 ## REN production and provisional empirical source periods
 
@@ -356,8 +385,8 @@ Library composition: `ren.identity.request_for(source_day)` →
 `RenAdapter().resolve(request)` → `RenAdapter().retriever(retrieval_event_id=...)`
 → shared `ingest_resolved`, passing the adapter's parser and LocalRawArchive.
 Offline tests inject MockTransport through the adapter's retriever factory.
-There is no new REN live command; source-profile observations are not Stage 8
-acceptance. Default pytest remains network-denied.
+The shared Stage 8 command covers REN; earlier Stage 2 source-profile
+observations remain separate from Stage 8 acceptance. Default pytest is network-denied.
 
 The safe report ID is `ElectricityProductionBreakdownDaily.en-US.v0.2.0`, so
 culture and pinned profile participate in existing canonical query identity.
@@ -391,7 +420,15 @@ MW unchanged, interval support and `provider_period_value`. No MW-to-MWh
 conversion, instantaneous claim or arithmetic-mean claim exists. Status is
 `provisional_empirical` in the versioned profile, separate from the provider's
 provisional publication status. Authoritative MW statistic, label placement and
-autumn fold contract remain unresolved; they no longer block forecasting inputs.
+autumn fold contract remain unresolved. Final acceptance follows the explicit
+operator policy in [ADR 0009](../adr/0009-ren-provisional-semantics-phase2-acceptance.md):
+the stronger evidence requirement is superseded for Phase 2 acceptance and
+criterion 4 is SATISFIED WITH DOCUMENTED LIMITATION. Deterministic 92/96/100
+normalization and unsupported-layout failures remain permanently tested; physical
+value-to-fold ownership and provider-authoritative interval edges remain externally
+unconfirmed. This decision supplies no new provider evidence, semantic-status
+upgrade or authorization for settlement/energy interpretation. Future feature
+engineering must retain this uncertainty and the explicit 0.2.0 profile version.
 
 The shared three-attempt, 1/2-second backoff and 10/30/93-second phase/attempt/
 operation budgets apply. Permanent failures terminate; 404 has no REN-specific
@@ -415,20 +452,23 @@ events, preserving all old events. See the original
 [ADR 0006](../adr/0006-ren-provisional-period-semantics.md)
 and the [Stage 2 report](../codex/reports/phase_2_stage_2_ren_report.md).
 
-## ESIOS indicator 544 (offline engineering integration)
+## ESIOS indicator 544
 
 Only `Demanda prevista Peninsular` is selected: Spanish peninsular demand
 forecast, MW, native five-minute timestamped samples. Publication description:
 00:00 covers D; 13:30 adds the first three hours of D+1. This does not establish
 a complete D+1 or historical auction-cutoff forecast vintage.
 
-Library composition: `esios.identity.request_for(QueryWindow(...))` →
-`EsiosAdapter().resolve(request)` → the adapter's retriever → shared
-`ingest_resolved`, `LocalRawArchive` and adapter parser. No live command is added;
-provider calls remain reserved for separately authorized controlled validation.
+Accepted library composition: `esios.identity.request_for(window, bounded=True)`
+→ `BoundedEsiosAdapter().resolve(request)` → the adapter's retriever → shared
+`ingest_resolved`, `LocalRawArchive` and adapter parser. Profile/parser 0.2.0 and
+report `indicator544.v0.2.0` use the bounded five-minute policy above.
 Offline tests inject `httpx.MockTransport` and a synthetic environment mapping.
 
-The request profile is `indicator544.v0.1.0`; parser/profile version is 0.1.0.
+Historical `request_for(window)`, `EsiosAdapter` and `EsiosParser` retain
+`indicator544.v0.1.0` and version 0.1.0 for reproduction. This legacy path sends
+the logical end directly and permits an inclusive endpoint; it is not the final
+accepted bounded product.
 Queries contain only ISO-8601 UTC `start_date` and `end_date` at
 `https://api.esios.ree.es/indicators/544`. Windows must be positive and at most
 25 hours. The UTC start date supplies archive partition context. No aggregation,
@@ -450,7 +490,12 @@ The strict parser requires indicator ID 544 and finite, non-null numeric values,
 explicit provider UTC timestamps and native geo IDs with peninsular name evidence
 (`Península` in the value or matching `geos`). Optional name/unit/magnitude/time
 metadata must agree when supplied; descriptions and display fields are optional
-inert bytes. No live numeric magnitude/cadence/geography ID is asserted. Raw cap
+inert bytes. Stage 8 observed name `Demanda prevista Peninsular`, magnitude
+`Potencia (20)`, cadence `Cinco minutos (219)` and geography `Península (8741)`.
+MW comes from the documented selected product: neither real response supplied
+an explicit native `unit` field. These observations are retained with versioned
+profile evidence in final acceptance; synthetic fixture ID 999001 remains synthetic.
+Raw cap
 is 2 MiB; at most 2,000 values and 32 geos, depth 16, 50,000 JSON nodes, strings
 4,096 characters and numeric tokens 128 characters. Unknown/error documents,
 duplicate JSON keys, conflicting or repeated timestamps and incompatible
@@ -458,9 +503,11 @@ metadata produce a failed parse event with zero normalized records, without retr
 
 Use `datetime_utc` directly. If offset-aware `datetime` is present, its instant
 and Europe/Madrid offset must agree, including DST. Strict UTC order and
-five-minute grid membership retain gaps without filling. A possible inclusive
-end sample is retained; samples outside the requested endpoints are rejected.
-Real end-date inclusivity remains unverified. No whole-window completeness,
+five-minute grid membership retain gaps without filling. Bounded 0.2.0 rejects
+every sample outside `[start,end)` atomically. Its provider end filter is the
+last desired native timestamp; ambiguous Madrid wire endpoints are unsupported.
+The controlled result had 288 samples, no gaps/duplicates or outside values.
+Provider-wide filtering/DST internals remain unverified. No general whole-window completeness,
 resampling, averaging or interval-energy claim is made.
 
 Each observation is an existing `SystemMeasurement` forecast/load/MW instant
@@ -475,30 +522,31 @@ publication status is unknown. Acquisition and parse times remain separate event
 Complete safe successful response bytes archive before parsing. Identical bytes
 reuse raw content with separate retrieval events; changed bytes retain both
 hashes and immutable histories. Replay uses shared `replay()` with original
-retrieval identity, then `EsiosParser.parse()` and `archive.persist_parse()`.
+retrieval identity, then the matching versioned parser and `archive.persist_parse()`.
 It requires no token or network and reproduces values, business identities,
 UTC times and raw linkage. Only the new parse event ID/time changes.
 
-Run `python -m pytest tests/unit/ingestion/esios tests/integration/test_esios_flow.py`
-for the focused offline suite. Exact live metadata spelling/catalogue mapping,
-authentication/identity-encoding compatibility, missing/error shapes, retention,
-revisions, quotas and returned coverage remain controlled-live checks; see the
-[Stage 3 report](../codex/reports/phase_2_stage_3_esios_report.md).
+Run `python -m pytest tests/unit/ingestion/esios tests/integration/test_esios_flow.py tests/integration/test_esios_boundary_semantics.py`
+for the focused offline suite. Stage 8 settles the selected real metadata,
+authentication, identity encoding and bounded coverage/replay. Missing/error
+variants, complete history/revisions, quotas and universal boundary internals
+remain unverified; Stage 3's original reservations are historical evidence.
 
 ## Deferred scope
 
-Other ESIOS products, ENTSO-E, Open-Meteo and
-MIBGAS remain unimplemented. Snowflake, dbt, feature engineering,
+Other ESIOS products and MIBGAS remain unimplemented. Snowflake, dbt, feature engineering,
 ML training, model registry, batch forecasts, FastAPI, dashboard, production
 scheduler and infrastructure deployment remain future work. No paid-resource
 action is part of this local workflow. See the
 [closure report](../codex/reports/phase_1_stage_7_final_acceptance.md) for the
 accepted limitations and future phase sequence.
 
-## ENTSO-E Stage 4 offline integration
+## ENTSO-E selected products
 
 Only ES actual load A65/A16 and PT/ES day-ahead wind/solar forecasts A69/A01
-are supported. No live command or provider validation is added or authorized.
+are supported. All three required domain/product paths passed Stage 8 live
+validation and denied replay under profile/parser 0.1.0; further live execution
+requires separate authorization.
 The [Stage 4 report](../codex/reports/phase_2_stage_4_entsoe_report.md) lists
 exact schema/code support and unresolved real-provider variants.
 
@@ -541,7 +589,7 @@ Focused offline validation:
 python -m pytest tests/unit/ingestion/entsoe tests/integration/test_entsoe_flow.py
 ```
 
-## Open-Meteo Stage 5 offline integration
+## Open-Meteo ERA5 and ICON-EU
 
 `ingestion/weather/` implements the Historical Weather API at
 `https://archive-api.open-meteo.com/v1/archive`, with `models=era5` explicitly.
@@ -549,7 +597,8 @@ Profile/parser **0.1.0** accepts exactly one versioned site and one complete UTC
 day per request, using `historical_request_for(window, site_id)` and
 `OpenMeteoAdapter.resolve(request)`. The six site identities/coordinates are
 listed in the [Stage 5 report](../codex/reports/phase_2_stage_5_open_meteo_report.md).
-No geocoding, batching, automatic date iteration or live command is provided.
+No geocoding, batching or automatic date iteration is provided. The shared
+Stage 8 command exercised both weather products at Lisbon only.
 
 Queries select only `temperature_2m`, `wind_speed_10m`, `shortwave_radiation`,
 `timezone=GMT`, `timeformat=unixtime`, `temperature_unit=celsius` and
@@ -596,7 +645,8 @@ therefore fail closed. One explicit day, 24 ordered hours and 72 records are
 required; no default multi-day horizon, missing-value repair or interpolation.
 The intended use is approximately 12–48 h day-ahead; main cycles are documented
 hourly through 78 h. Side-cycle availability and actual run contributions remain
-unverified; no run initialization or actual lead time is inferred from acquisition.
+unverified beyond the successful captured next-day snapshot; no run initialization
+or actual lead time is inferred from acquisition.
 A UTC weather day is not a complete local MIBEL delivery-day claim.
 
 Forecasts retain `kind=forecast`, ERA5 `kind=reanalysis`; both retain the same
@@ -617,10 +667,38 @@ transition after 30 November 2026 does not change the configured site or selecto
 per-site switching, model mixing or filling missing ICON-EU values. A future IFS
 integration requires separate authorization, identity/profile and archive history.
 
-Actual provider shape, units, coverage, grid/elevation, shortwave behavior,
-main/side cycles, cutoff availability, errors, limits, compression, grid transition,
-terms/attribution and historical run completeness/publication timing remain
-reserved for separately authorized controlled live validation.
+Stage 8 confirms captured response shape, selected units, exact 24-hour coverage,
+returned grid/elevation, accepted shortwave support and denied replay for both
+products. Main/side-run contributions, old-cutoff availability, unknown error
+variants/limits, future compression/grid changes and historical run completeness/
+publication timing remain unverified. No new provider request is needed for
+ordinary replay or Stage 9 validation.
+
+## Attribution, service access and evidence handling
+
+The retained readiness §S and Stage 5 model-selection §8 record the inspected
+terms; Stage 9 does not recheck legal pages or grant production clearance.
+REN reuse/raw redistribution rights remain restricted or unclear. ESIOS terms
+cover site/API, require source/update attribution and prohibit commercial use.
+ENTSO-E's reuse subset requires selected article/owner eligibility review and
+attribution/change notices. Open-Meteo data attribution/licensing and upstream
+notices (ERA5/ECMWF and DWD ICON) are separate from its noncommercial free-service
+access restrictions. Confirm applicable rights before production or redistribution;
+do not infer clearance from anonymous/authenticated HTTP success.
+
+Stage 8 evidence roots are external local evidence, not repository fixtures:
+`/tmp/iberian-shakti-phase2-stage8-live-20261103` and
+`/tmp/iberian-shakti-phase2-stage8-esios-boundary-live-20261103`.
+Keep bodies, private request information and manifests outside Git. Preserve the
+original failed ESIOS acquisition and its immutable events separately from the
+bounded success. Final acceptance cites safe checksums/query/event references;
+ordinary tests require neither root. Stage 9 does not mutate either archive.
+
+Unknown forecast issue/run/publication times remain null. Latest ICON-EU snapshots
+are not historical forecast vintages; ERA5 is reanalysis. Historical cutoff-safe
+training datasets require later data-governance work. Future service/schema/model
+compatibility, complete history, a production SLA and commercial clearance are
+not established by this ingestion implementation.
 
 Focused validation remains offline under the unchanged pytest network guard:
 
