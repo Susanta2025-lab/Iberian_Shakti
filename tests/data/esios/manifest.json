@@ -1,0 +1,9 @@
+{
+  "synthetic_forecast.json": {
+    "bytes": 900,
+    "sha256": "321ce4e44f46de6121636c8d2303dabd190edab4e524b73a5d670ec77ff516c8",
+    "evidence": "synthetic",
+    "profile": "0.1.0",
+    "record_count": 3
+  }
+}

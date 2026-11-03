@@ -17,7 +17,8 @@ Operational procedures live in [`docs/runbooks/`](../runbooks/README.md).
 Phase 0 and Phase 1 are **CLOSED/PASS**; Phase 2 is in progress. Stage 1
 implements shared multi-source contracts/request security. Stage 2 implements
 REN acquisition/chart validation and provisional empirical source-period UTC
-normalization under profile 0.2.0. ESIOS, ENTSO-E and Open-Meteo remain pending. Phase 1
+normalization under profile 0.2.0. Stage 3 implements ESIOS indicator 544 offline
+under profile 0.1.0. ENTSO-E and Open-Meteo remain pending. Phase 1
 implements local OMIE ingestion, immutable archival, provenance and offline
 replay, verified by the
 [final acceptance report](../codex/reports/phase_1_stage_7_final_acceptance.md).
@@ -134,6 +135,16 @@ New parse events can reinterpret exact legacy acquisitions without rewriting
 their original query or failed parse events. No new live command or XML
 parser is implemented. See the [Stage 1 report](../codex/reports/phase_2_stage_1_report.md)
 for deterministic evidence and remaining provider-stage work.
+
+Stage 3's `ingestion/esios/` pins only indicator 544 and reuses that shared
+query/authentication/runner/archive/replay chain. Bounded native five-minute
+values become forecast/load/MW `SystemMeasurement` instant samples using explicit
+provider UTC timestamps. Peninsular system geography preserves returned native
+IDs; no numeric catalogue ID is guessed. Indicator `values_updated_at` remains
+source update context, never a forecast issue time. Unknown editions retain
+acquisition snapshot identities. Profile/parser 0.1.0 has synthetic offline
+evidence; authenticated metadata and real end-boundary behavior await controlled
+live validation. See the [Stage 3 report](../codex/reports/phase_2_stage_3_esios_report.md).
 
 ## Planned end-to-end data flow
 

@@ -12,8 +12,8 @@ system as designed.
 
 There is **no deployed production system** yet. Phase 1 local OMIE ingestion,
 archive and replay are implemented and CLOSED/PASS. Phase 2 is in progress
-(REN acquisition and provisional empirical MW normalization implemented; ESIOS,
-ENTSO-E and Open-Meteo pending).
+(REN provisional empirical MW normalization and ESIOS indicator 544 offline
+integration implemented; ENTSO-E and Open-Meteo pending).
 The [OMIE ingestion runbook](ingestion.md) covers the implemented operator path;
 the catalog below lists future procedures, not existing services.
 

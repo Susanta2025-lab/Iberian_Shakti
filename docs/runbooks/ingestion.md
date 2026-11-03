@@ -2,9 +2,10 @@
 
 Applies to the implemented Phase 1 local workflow. Phase 1 is CLOSED/PASS;
 Phase 2 is in progress; REN acquisition and provisional empirical source-period
-UTC normalization are implemented. ESIOS, ENTSO-E and Open-Meteo pending.
+UTC normalization and ESIOS indicator 544 offline integration are implemented.
+ENTSO-E and Open-Meteo remain pending.
 There is no scheduler or deployed production service.
-Last verified offline: 2026-11-03 (revised REN Stage 2 and Phase 1/Stage 1 regressions). Live evidence is the historical
+Last verified offline: 2026-11-03 (ESIOS Stage 3 and existing regressions). Live evidence is the historical
 [Stage 6 report](../codex/reports/phase_1_stage_6_live_validation.md);
 Stage 7 made no provider request.
 
@@ -306,9 +307,79 @@ events, preserving all old events. See the original
 [ADR 0006](../adr/0006-ren-provisional-period-semantics.md)
 and the [Stage 2 report](../codex/reports/phase_2_stage_2_ren_report.md).
 
+## ESIOS indicator 544 (offline engineering integration)
+
+Only `Demanda prevista Peninsular` is selected: Spanish peninsular demand
+forecast, MW, native five-minute timestamped samples. Publication description:
+00:00 covers D; 13:30 adds the first three hours of D+1. This does not establish
+a complete D+1 or historical auction-cutoff forecast vintage.
+
+Library composition: `esios.identity.request_for(QueryWindow(...))` →
+`EsiosAdapter().resolve(request)` → the adapter's retriever → shared
+`ingest_resolved`, `LocalRawArchive` and adapter parser. No live command is added;
+provider calls remain reserved for separately authorized controlled validation.
+Offline tests inject `httpx.MockTransport` and a synthetic environment mapping.
+
+The request profile is `indicator544.v0.1.0`; parser/profile version is 0.1.0.
+Queries contain only ISO-8601 UTC `start_date` and `end_date` at
+`https://api.esios.ree.es/indicators/544`. Windows must be positive and at most
+25 hours. The UTC start date supplies archive partition context. No aggregation,
+pagination, backfill loop or geographic-ID guess is made. Keep separate deliberate
+calls sequential and at least one second apart. Shared three-attempt bounded
+retry/backoff/time budgets apply; delta-seconds Retry-After is respected.
+
+`ESIOS_API_TOKEN` is loaded only when constructing the selected retriever and
+injected privately as `x-api-key`. Missing/invalid credentials raise the shared
+static `ConfigurationError` before request construction or network I/O. No .env
+loading, authentication fallback, refresh, token logging or CI secret is needed.
+401/403 are terminal authentication/authorization failures. Unverified 404 bodies
+remain permanent HTTP failures, without invented no-data semantics. Timeouts,
+429 and supported 5xx use shared retries. Oversized bodies and active-credential
+echoes are rejected before raw publication; authenticated nonidentity encoding
+also fails before publication under the existing private policy.
+
+The strict parser requires indicator ID 544 and finite, non-null numeric values,
+explicit provider UTC timestamps and native geo IDs with peninsular name evidence
+(`Península` in the value or matching `geos`). Optional name/unit/magnitude/time
+metadata must agree when supplied; descriptions and display fields are optional
+inert bytes. No live numeric magnitude/cadence/geography ID is asserted. Raw cap
+is 2 MiB; at most 2,000 values and 32 geos, depth 16, 50,000 JSON nodes, strings
+4,096 characters and numeric tokens 128 characters. Unknown/error documents,
+duplicate JSON keys, conflicting or repeated timestamps and incompatible
+metadata produce a failed parse event with zero normalized records, without retry.
+
+Use `datetime_utc` directly. If offset-aware `datetime` is present, its instant
+and Europe/Madrid offset must agree, including DST. Strict UTC order and
+five-minute grid membership retain gaps without filling. A possible inclusive
+end sample is retained; samples outside the requested endpoints are rejected.
+Real end-date inclusivity remains unverified. No whole-window completeness,
+resampling, averaging or interval-energy claim is made.
+
+Each observation is an existing `SystemMeasurement` forecast/load/MW instant
+sample with cadence 300 seconds, canonical `ES.peninsular` system/mainland area,
+returned provider-native geo ID, native series 544 and profile version.
+`Statistic.INSTANT` represents a timestamped forecast sample, not actual demand
+or a confirmed arithmetic mean. `values_updated_at`, if supplied, is indicator
+update context in `SourceTimes.updated_at` on the snapshot's records; it does
+not establish a per-value issue time. Issue/run/publication times remain null;
+publication status is unknown. Acquisition and parse times remain separate events.
+
+Complete safe successful response bytes archive before parsing. Identical bytes
+reuse raw content with separate retrieval events; changed bytes retain both
+hashes and immutable histories. Replay uses shared `replay()` with original
+retrieval identity, then `EsiosParser.parse()` and `archive.persist_parse()`.
+It requires no token or network and reproduces values, business identities,
+UTC times and raw linkage. Only the new parse event ID/time changes.
+
+Run `python -m pytest tests/unit/ingestion/esios tests/integration/test_esios_flow.py`
+for the focused offline suite. Exact live metadata spelling/catalogue mapping,
+authentication/identity-encoding compatibility, missing/error shapes, retention,
+revisions, quotas and returned coverage remain controlled-live checks; see the
+[Stage 3 report](../codex/reports/phase_2_stage_3_esios_report.md).
+
 ## Deferred scope
 
-ESIOS, ENTSO-E, Open-Meteo and
+Other ESIOS products, ENTSO-E, Open-Meteo and
 MIBGAS remain unimplemented. Snowflake, dbt, feature engineering,
 ML training, model registry, batch forecasts, FastAPI, dashboard, production
 scheduler and infrastructure deployment remain future work. No paid-resource

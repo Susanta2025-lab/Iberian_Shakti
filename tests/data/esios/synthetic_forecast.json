@@ -1,0 +1,33 @@
+{
+  "indicator": {
+    "id": 544,
+    "name": "Demanda prevista Peninsular",
+    "magnitud": [{"name": "Potencia"}],
+    "tiempo": [{"name": "Cinco minutos"}],
+    "geos": [{"geo_id": 999001, "geo_name": "Península"}],
+    "values_updated_at": "2026-10-25T03:10:00+01:00",
+    "values": [
+      {
+        "value": 23000.12300,
+        "datetime": "2026-10-25T02:55:00+02:00",
+        "datetime_utc": "2026-10-25T00:55:00Z",
+        "geo_id": 999001,
+        "geo_name": "Península"
+      },
+      {
+        "value": 23001,
+        "datetime": "2026-10-25T02:00:00+01:00",
+        "datetime_utc": "2026-10-25T01:00:00Z",
+        "geo_id": 999001,
+        "geo_name": "Península"
+      },
+      {
+        "value": 23002.5,
+        "datetime": "2026-10-25T02:05:00+01:00",
+        "datetime_utc": "2026-10-25T01:05:00Z",
+        "geo_id": 999001,
+        "geo_name": "Península"
+      }
+    ]
+  }
+}
