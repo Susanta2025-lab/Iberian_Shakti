@@ -136,6 +136,7 @@ class HttpRetriever:
         sleeper: Callable[[float], None] = time.sleep,
         now: Callable[[], datetime] = utc_now,
         request_policy: PrivateRequestPolicy | None = None,
+        retry_rate_limits: bool = True,
     ) -> None:
         validate_size(max_bytes)
         validate_size(listing_max_bytes)
@@ -144,6 +145,7 @@ class HttpRetriever:
         validate_event_id(retrieval_event_id)
         self.resolve_url = resolve_url
         self.event_id = retrieval_event_id
+        self.retry_rate_limits = retry_rate_limits
         self.classify_unavailable = classify_unavailable
         self.policy = policy if policy is not None else RetryPolicy()
         self.transport = transport
@@ -333,7 +335,9 @@ class HttpRetriever:
                         if status == 429:
                             retry_after = self._retry_after(response.headers.get("retry-after"))
                             raise ExecutionError(
-                                ErrorCode.RATE_LIMITED, FailureReason.RATE_LIMIT, retryable=True
+                                ErrorCode.RATE_LIMITED,
+                                FailureReason.RATE_LIMIT,
+                                retryable=self.retry_rate_limits,
                             )
                         if guard is not None and status in {401, 403}:
                             raise ExecutionError(

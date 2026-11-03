@@ -1,0 +1,58 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<GL_MarketDocument xmlns="urn:iec62325.351:tc57wg16:451-6:generationloaddocument:3:0">
+  <mRID>synthetic-forecast-document</mRID>
+  <revisionNumber>1</revisionNumber>
+  <type>A69</type>
+  <process.processType>A01</process.processType>
+  <sender_MarketParticipant.mRID codingScheme="A01">synthetic-sender</sender_MarketParticipant.mRID>
+  <sender_MarketParticipant.marketRole.type>A32</sender_MarketParticipant.marketRole.type>
+  <receiver_MarketParticipant.mRID codingScheme="A01">synthetic-receiver</receiver_MarketParticipant.mRID>
+  <receiver_MarketParticipant.marketRole.type>A33</receiver_MarketParticipant.marketRole.type>
+  <createdDateTime>2026-10-24T12:00:00Z</createdDateTime>
+  <time_Period.timeInterval><start>2026-10-25T00:00Z</start><end>2026-10-25T03:00Z</end></time_Period.timeInterval>
+  <TimeSeries>
+    <mRID>synthetic-B16</mRID>
+    <businessType>A94</businessType>
+    <objectAggregation>A08</objectAggregation>
+    <inBiddingZone_Domain.mRID codingScheme="A01">10YES-REE------0</inBiddingZone_Domain.mRID>
+    <quantity_Measure_Unit.name>MAW</quantity_Measure_Unit.name>
+    <curveType>A03</curveType>
+    <MktPSRType><psrType>B16</psrType></MktPSRType>
+    <Period>
+      <timeInterval><start>2026-10-25T00:00Z</start><end>2026-10-25T01:00Z</end></timeInterval>
+      <resolution>PT15M</resolution>
+      <Point><position>1</position><quantity>1000.12300</quantity></Point>
+      <Point><position>3</position><quantity>1001</quantity></Point>
+    </Period>
+  </TimeSeries>
+  <TimeSeries>
+    <mRID>synthetic-B18</mRID>
+    <businessType>A93</businessType>
+    <objectAggregation>A08</objectAggregation>
+    <inBiddingZone_Domain.mRID codingScheme="A01">10YES-REE------0</inBiddingZone_Domain.mRID>
+    <quantity_Measure_Unit.name>MAW</quantity_Measure_Unit.name>
+    <curveType>A03</curveType>
+    <MktPSRType><psrType>B18</psrType></MktPSRType>
+    <Period>
+      <timeInterval><start>2026-10-25T00:00Z</start><end>2026-10-25T01:00Z</end></timeInterval>
+      <resolution>PT15M</resolution>
+      <Point><position>1</position><quantity>1000.12300</quantity></Point>
+      <Point><position>3</position><quantity>1001</quantity></Point>
+    </Period>
+  </TimeSeries>
+  <TimeSeries>
+    <mRID>synthetic-B19</mRID>
+    <businessType>A93</businessType>
+    <objectAggregation>A08</objectAggregation>
+    <inBiddingZone_Domain.mRID codingScheme="A01">10YES-REE------0</inBiddingZone_Domain.mRID>
+    <quantity_Measure_Unit.name>MAW</quantity_Measure_Unit.name>
+    <curveType>A03</curveType>
+    <MktPSRType><psrType>B19</psrType></MktPSRType>
+    <Period>
+      <timeInterval><start>2026-10-25T00:00Z</start><end>2026-10-25T01:00Z</end></timeInterval>
+      <resolution>PT15M</resolution>
+      <Point><position>1</position><quantity>1000.12300</quantity></Point>
+      <Point><position>3</position><quantity>1001</quantity></Point>
+    </Period>
+  </TimeSeries>
+</GL_MarketDocument>

@@ -5,6 +5,7 @@ JSON/dict serialization API. Only safe query identity goes into provenance.
 """
 
 import json
+import re
 from dataclasses import dataclass, field
 from typing import Literal
 from urllib.parse import quote, quote_plus
@@ -14,6 +15,23 @@ from pydantic import SecretStr
 
 from iberian_shakti.contracts.ingestion import ErrorCode
 from iberian_shakti.ingestion.errors import ExecutionError, FailureReason
+
+_XML_REFERENCE = re.compile(r"&#(?:x[0-9a-fA-F]+|[0-9]+);|&(?:amp|lt|gt|quot|apos);")
+
+
+def _xml_reference(match: re.Match[str]) -> str:
+    value = match.group()
+    if value.startswith("&#"):
+        hexadecimal = value.startswith("&#x")
+        digits = value[3:-1] if hexadecimal else value[2:-1]
+        digits = digits.lstrip("0") or "0"
+        # XML permits zero-padded references. Avoid Python's integer conversion
+        # work/digit limit for hostile tokens while retaining valid codepoints.
+        if len(digits) > (6 if hexadecimal else 7):
+            return value
+        number = int(digits, 16 if hexadecimal else 10)
+        return chr(number) if 0 < number <= 0x10FFFF else value
+    return {"&amp;": "&", "&lt;": "<", "&gt;": ">", "&quot;": '"', "&apos;": "'"}[value]
 
 
 def validate_credential(value: str) -> None:
@@ -63,6 +81,7 @@ class PrivateRequestPolicy:
 
     origin: str
     authentication: PrivateAuthentication | None = field(default=None, repr=False)
+    xml_character_references: bool = False
 
     def __post_init__(self) -> None:
         try:
@@ -116,4 +135,14 @@ class PrivateRequestPolicy:
             return False
         secret = auth.credential.get_secret_value()
         forms = (secret, quote(secret, safe=""), quote_plus(secret), json.dumps(secret)[1:-1])
-        return any(value.encode("utf-8") in data for value in forms)
+        if any(value.encode("utf-8") in data for value in forms):
+            return True
+        if self.xml_character_references:
+            try:
+                # Only XML's predefined/character references, one pass, no DTD
+                # or XML execution. Check without altering archived originals.
+                decoded = _XML_REFERENCE.sub(_xml_reference, data.decode("utf-8"))
+            except UnicodeDecodeError:
+                return False
+            return any(value in decoded for value in forms)
+        return False

@@ -1,0 +1,30 @@
+{
+  "synthetic_acknowledgement.xml": {
+    "bytes": 344,
+    "sha256": "9e20a7d5b41d04d8c48df151b8d5d1f41fe866ded6ef3aa6e63af875c1976019",
+    "evidence": "synthetic",
+    "profile": "0.1.0",
+    "record_count": 0
+  },
+  "synthetic_es_forecast.xml": {
+    "bytes": 2942,
+    "sha256": "02358e5b42ee209ef22b7d51ff48110286e6f590e615c88ec7f3d2588a8ea95b",
+    "evidence": "synthetic",
+    "profile": "0.1.0",
+    "record_count": 12
+  },
+  "synthetic_es_load.xml": {
+    "bytes": 1738,
+    "sha256": "b4870f2a38df1d8d81902fe4367f92eb25ce274efe373ee3083671448433272f",
+    "evidence": "synthetic",
+    "profile": "0.1.0",
+    "record_count": 3
+  },
+  "synthetic_pt_forecast.xml": {
+    "bytes": 2249,
+    "sha256": "fa8d22386364b36a46d5deb0dd94fd6e86bf4bc1d94568efae767b74c1deb496",
+    "evidence": "synthetic",
+    "profile": "0.1.0",
+    "record_count": 8
+  }
+}

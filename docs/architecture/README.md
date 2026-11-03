@@ -18,7 +18,8 @@ Phase 0 and Phase 1 are **CLOSED/PASS**; Phase 2 is in progress. Stage 1
 implements shared multi-source contracts/request security. Stage 2 implements
 REN acquisition/chart validation and provisional empirical source-period UTC
 normalization under profile 0.2.0. Stage 3 implements ESIOS indicator 544 offline
-under profile 0.1.0. ENTSO-E and Open-Meteo remain pending. Phase 1
+under profile 0.1.0. Stage 4 implements the three selected ENTSO-E products
+offline under profile 0.1.0. Open-Meteo remains pending. Phase 1
 implements local OMIE ingestion, immutable archival, provenance and offline
 replay, verified by the
 [final acceptance report](../codex/reports/phase_1_stage_7_final_acceptance.md).
@@ -132,8 +133,8 @@ statistic requires interval support and cannot represent MWh; it does not prove
 an arithmetic mean or authorize energy conversion. Weather semantics and legacy
 serialization remain unchanged. The shared runner/archive/replay are unchanged.
 New parse events can reinterpret exact legacy acquisitions without rewriting
-their original query or failed parse events. No new live command or XML
-parser is implemented. See the [Stage 1 report](../codex/reports/phase_2_stage_1_report.md)
+their original query or failed parse events. Stage 1 introduced no live command
+or XML parser. See the [Stage 1 report](../codex/reports/phase_2_stage_1_report.md)
 for deterministic evidence and remaining provider-stage work.
 
 Stage 3's `ingestion/esios/` pins only indicator 544 and reuses that shared
@@ -145,6 +146,22 @@ source update context, never a forecast issue time. Unknown editions retain
 acquisition snapshot identities. Profile/parser 0.1.0 has synthetic offline
 evidence; authenticated metadata and real end-boundary behavior await controlled
 live validation. See the [Stage 3 report](../codex/reports/phase_2_stage_3_esios_report.md).
+
+Stage 4's `ingestion/entsoe/` implements only ES A65/A16 actual load and PT/ES
+A69/A01 wind/solar forecasts. The existing query/private-auth/retriever/archive/
+runner/replay chain carries pinned EIC bidding-zone identities and separate
+PSR technologies. Bounded UTF-8 Expat callbacks prohibit DTDs/entities/external
+resources before namespace-aware validation of GL v3 / acknowledgement v7.
+A01 complete fixed blocks and A03 constant blocks become UTC support intervals;
+multiple Periods retain gaps. Decimal MW `provider_period_value` avoids inventing
+an arithmetic mean or converting power to energy. Document creation remains
+raw metadata, distinct from unknown issue/run/update/publication times.
+
+Two opt-in shared controls serve this profile: XML character-reference credential
+echo detection and terminal 429 handling. Defaults preserve prior providers.
+No new dependency, contract or archive format is introduced. See the
+[Stage 4 report](../codex/reports/phase_2_stage_4_entsoe_report.md) for supported
+codes, limits, synthetic evidence and live-validation reservations.
 
 ## Planned end-to-end data flow
 
@@ -200,8 +217,8 @@ convenience.
 
 OMIE is implemented. REN acquisition/validation and provisional empirical
 normalization are implemented; authoritative label/statistic/fold definitions
-remain unresolved refinements. `esios`, `entsoe`
-and `weather` remain stubs: ESIOS pending, ENTSO-E pending, Open-Meteo pending.
+remain unresolved refinements. ESIOS indicator 544 and the selected ENTSO-E
+products are implemented offline; `weather` remains a stub and Open-Meteo is pending.
 MIBGAS remains deferred. Phase 2 is in progress.
 
 Environment configuration (see `.env.example`; do not add secrets to the
@@ -210,8 +227,9 @@ repository):
 - Phase 1 reads only local archive, timeout, attempt, backoff and log-level
   settings explicitly, without automatic `.env` loading or provider credentials.
 - A separate explicit selected-provider loader reads only ESIOS_API_TOKEN or
-  ENTSOE_API_TOKEN when requested; anonymous sources read neither. No authenticated adapter
-  uses them yet; REN remains anonymous. Phase 1 does not read these tokens or Snowflake placeholders.
+  ENTSOE_API_TOKEN when requested; anonymous sources read neither. ESIOS and
+  ENTSO-E inject them privately; REN remains anonymous. Phase 1 does not read
+  these tokens or Snowflake placeholders.
 
 Snowflake subdirectories (`raw`, `curated`, `features`, `serving`, `ml`,
 `roles`, `tasks`, `audit`) and Terraform environment dirs (`dev`, `staging`,

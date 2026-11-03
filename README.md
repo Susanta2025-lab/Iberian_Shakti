@@ -16,7 +16,8 @@ serving-data platform.
 
 - Phase 0 — CLOSED/PASS
 - Phase 1 — CLOSED/PASS
-- Phase 2 — in progress (Stage 2 REN provisional profile; Stage 3 ESIOS implemented offline)
+- Phase 2 — in progress (Stage 2 REN provisional profile; Stage 3 ESIOS and
+  Stage 4 ENTSO-E implemented offline)
 
 The [Phase 1 final acceptance report](docs/codex/reports/phase_1_stage_7_final_acceptance.md)
 traces all 22 original acceptance criteria to implementation and verification.
@@ -26,6 +27,8 @@ The [REN Stage 2 report](docs/codex/reports/phase_2_stage_2_ren_report.md) recor
 the original time-semantics gate and the revised Stage 2 acceptance decision.
 The [ESIOS Stage 3 report](docs/codex/reports/phase_2_stage_3_esios_report.md)
 records offline integration and the remaining controlled live checks.
+The [ENTSO-E Stage 4 report](docs/codex/reports/phase_2_stage_4_entsoe_report.md)
+records strict XML ingestion and offline acceptance for the three selected products.
 
 Present today:
 
@@ -54,6 +57,10 @@ Present today:
   five-minute UTC forecast samples in MW for the Spanish peninsular system,
   immutable revisions and offline replay. Historical snapshots do not establish
   a guaranteed complete D-1 forecast vintage; live compatibility remains unverified.
+- ENTSO-E ES actual total load (A65/A16) and PT/ES day-ahead solar/onshore/offshore
+  wind forecasts (A69/A01), strict bounded Generation/Load v3 and acknowledgement
+  v7 XML, A01/A03 curves, immutable native identity and offline replay. Absent
+  technologies remain absent; live compatibility has not been validated.
 - 968 Phase 1 regression cases retained alongside Stage 1 tests; default pytest
   denies network access, including DNS, outbound socket operations and real HTTPX transports
 - Directory skeletons for `apps/`, `snowflake/`, `dbt/`, `infra/terraform/`,
@@ -61,7 +68,7 @@ Present today:
 
 REN's authoritative MW statistic, label definition and autumn fold contract
 remain unresolved refinements, documented in its provisional profile.
-ENTSO-E and Open-Meteo are pending; MIBGAS is deferred. Snowflake,
+Open-Meteo is pending; MIBGAS is deferred. Snowflake,
 dbt, feature engineering, ML training, model registry, batch forecasts, FastAPI,
 dashboard, production scheduler and infrastructure deployment. These are not
 implemented. Phase 1 operates locally; it is not a deployed production service.

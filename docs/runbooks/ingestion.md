@@ -2,10 +2,11 @@
 
 Applies to the implemented Phase 1 local workflow. Phase 1 is CLOSED/PASS;
 Phase 2 is in progress; REN acquisition and provisional empirical source-period
-UTC normalization and ESIOS indicator 544 offline integration are implemented.
-ENTSO-E and Open-Meteo remain pending.
+UTC normalization, ESIOS indicator 544 and selected ENTSO-E Stage 4 products
+are implemented offline. Open-Meteo remains pending.
 There is no scheduler or deployed production service.
-Last verified offline: 2026-11-03 (ESIOS Stage 3 and existing regressions). Live evidence is the historical
+Last verified offline: 2026-11-03 (ENTSO-E Stage 4 and existing regressions).
+Live evidence is the historical
 [Stage 6 report](../codex/reports/phase_1_stage_6_live_validation.md);
 Stage 7 made no provider request.
 
@@ -386,3 +387,49 @@ scheduler and infrastructure deployment remain future work. No paid-resource
 action is part of this local workflow. See the
 [closure report](../codex/reports/phase_1_stage_7_final_acceptance.md) for the
 accepted limitations and future phase sequence.
+
+## ENTSO-E Stage 4 offline integration
+
+Only ES actual load A65/A16 and PT/ES day-ahead wind/solar forecasts A69/A01
+are supported. No live command or provider validation is added or authorized.
+The [Stage 4 report](../codex/reports/phase_2_stage_4_entsoe_report.md) lists
+exact schema/code support and unresolved real-provider variants.
+
+`entsoe.identity.request_for(product, country, QueryWindow(...))` selects
+`actual_load`/`ES` or `wind_solar_forecast`/`PT` or `ES`. Use explicit whole-minute
+UTC endpoints, positive and at most 25 hours. `EntsoeAdapter.resolve()` checks
+canonical product/domain/profile identity. Independent country queries preserve
+EIC bidding-zone roles; do not equate these with REN or ESIOS perimeters.
+
+For a separately authorized future acquisition, the adapter's retriever requires
+only `ENTSOE_API_TOKEN` through the existing private loader. It fails before I/O
+on missing/invalid configuration and injects `securityToken` only privately.
+Never print private URLs, response text or credentials. HTTP 401/403 and ENTSO-E
+429 are terminal. Other transient transport/5xx errors use shared finite retries.
+Do not probe credentials or retry semantic acknowledgements/content failures.
+
+Generation/Load v3 and acknowledgement v7 are the only supported namespaces;
+XML 1.0 UTF-8 (optional BOM) is the accepted encoding. DTDs, entities, external
+resources, processing instructions and work-limit violations fail. Safe complete
+HTTP-200 responses archive before parsing, including acknowledgements and
+malformed XML; oversized/interrupted or active-secret-bearing bodies do not
+publish as complete acquisitions. XML character-reference echoes are checked
+before publication without changing original bytes.
+
+A01 requires complete ordered fixed blocks. A03 expands explicitly encoded
+constant blocks through the Period end. Multiple ordered non-overlapping Periods
+retain gaps; duplicates/conflicts fail atomically. MAW maps to exact Decimal MW
+period power, with no energy conversion or claimed mean. B16/B18/B19 remain
+solar/offshore/onshore identities; absent technology series create no records.
+Document creation stays in original XML, not a guessed forecast issue time.
+
+For offline replay use the shared `replay()` with the saved archive reference
+and original retrieval UUID, then `EntsoeAdapter().parser.parse(...)` with a new
+parse UUID/UTC time, followed by `archive.persist_parse(...)`. No credential is
+needed; corruption fails without refetching. Original history remains immutable.
+
+Focused offline validation:
+
+```bash
+python -m pytest tests/unit/ingestion/entsoe tests/integration/test_entsoe_flow.py
+```
